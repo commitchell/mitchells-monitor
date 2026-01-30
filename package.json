@@ -1,16 +1,16 @@
 {
-    "name": "pull-request-monitor",
-    "displayName": "GitHub Pull Request Monitor",
-    "description": "Monitors the status of GitHub pull requests. Checks for conflicts, status reports, reviews and whether the branch is  up to date.",
+    "name": "mitchells-monitor",
+    "displayName": "Mitchell's Monitor",
+    "description": "Monitors the status of GitHub pull requests. Checks for conflicts, status reports, reviews and whether the branch is up to date. Modern fork of 'Pull Request Monitor' by Erich Behrens.",
     "icon": "icon.png",
-    "version": "1.7.1",
-    "publisher": "erichbehrens",
-    "author": "Erich Behrens <me@eb1.it>",
+    "version": "1.0.0",
+    "publisher": "commitchell",
+    "author": "Mitchell Simpson <hello@commitchell.com>",
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/erichbehrens/pull-request-monitor/issues"
+        "url": "https://github.com/commitchell/mitchells-monitor/issues"
     },
-    "homepage": "https://github.com/erichbehrens/pull-request-monitor#readme",
+    "homepage": "https://github.com/commitchell/mitchells-monitor#readme",
     "engines": {
         "vscode": "^1.18.0"
     },
@@ -19,42 +19,42 @@
     ],
     "activationEvents": [
         "*",
-        "onCommand:PullRequestMonitor.setToken",
-        "onCommand:PullRequestMonitor.start",
-        "onCommand:PullRequestMonitor.setMode",
-        "onCommand:PullRequestMonitor.selectRepository",
-        "onCommand:PullRequestMonitor.enterRepositoryName"
+        "onCommand:mitchells-monitor.setToken",
+        "onCommand:mitchells-monitor.start",
+        "onCommand:mitchells-monitor.setMode",
+        "onCommand:mitchells-monitor.selectRepository",
+        "onCommand:mitchells-monitor.enterRepositoryName"
     ],
     "main": "./src/extension",
     "contributes": {
         "commands": [
             {
-                "command": "PullRequestMonitor.start",
-                "title": "PR Monitor: Start"
+                "command": "mitchells-monitor.start",
+                "title": "Mitchell's Monitor: Start monitoring"
             },
             {
-                "command": "PullRequestMonitor.stop",
-                "title": "PR Monitor: Stop"
+                "command": "mitchells-monitor.stop",
+                "title": "Mitchell's Monitor: Stop monitoring"
             },
             {
-                "command": "PullRequestMonitor.refresh",
-                "title": "PR Monitor: Refresh"
+                "command": "mitchells-monitor.refresh",
+                "title": "Mitchell's Monitor: Refresh now"
             },
             {
-                "command": "PullRequestMonitor.setMode",
-                "title": "PR Monitor: Set mode"
+                "command": "mitchells-monitor.setMode",
+                "title": "Mitchell's Monitor: Set mode"
             },
             {
-                "command": "PullRequestMonitor.selectRepository",
-                "title": "PR Monitor: Select repository"
+                "command": "mitchells-monitor.selectRepository",
+                "title": "Mitchell's Monitor: Select repository"
             },
             {
-                "command": "PullRequestMonitor.enterRepositoryName",
-                "title": "PR Monitor: Enter repository name"
+                "command": "mitchells-monitor.enterRepositoryName",
+                "title": "Mitchell's Monitor: Enter repository name"
             },
             {
-                "command": "PullRequestMonitor.setToken",
-                "title": "PR Monitor: Set GitHub token"
+                "command": "mitchells-monitor.setToken",
+                "title": "Mitchell's Monitor: Set GitHub token"
             }
         ],
         "configuration": [
@@ -62,40 +62,45 @@
                 "title": "GitHub Pull Request Monitor",
                 "type": "object",
                 "properties": {
-                    "pullRequestMonitor.refreshInterval": {
+                    "mitchells-monitor.refreshInterval": {
                         "description": "Refresh interval in seconds (min. 15)",
                         "type": "number",
-                        "default": 60
+                        "default": 300
                     },
-                    "pullRequestMonitor.showMerged": {
+                    "mitchells-monitor.showMerged": {
                         "description": "Show merged pull requests",
                         "type": "boolean",
                         "default": false
                     },
-                    "pullRequestMonitor.showClosed": {
+                    "mitchells-monitor.showClosed": {
                         "description": "Show closed pull requests",
                         "type": "boolean",
                         "default": false
                     },
-                    "pullRequestMonitor.autostart": {
-                        "description": "Automatically start the extension with VS Code",
+                    "mitchells-monitor.autostart": {
+                        "description": "Automatically start the extension on startup",
                         "type": "boolean",
                         "default": true
                     },
-                    "pullRequestMonitor.count": {
+                    "mitchells-monitor.count": {
                         "description": "Number of pull requests to show",
                         "type": "number",
                         "default": 6
                     },
-                    "pullRequestMonitor.githubEnterpriseUrl": {
-                        "description": "The Url to a Github Enterprise",
+                    "mitchells-monitor.githubEnterpriseUrl": {
+                        "description": "Optionally, you can provide a GitHub Enterprise URL to query (e.g., 'https://github.mycompany.com')",
                         "type": "string",
                         "default": null
                     },
-                    "pullRequestMonitor.allowUnsafeSSL": {
-                        "description": "Stop the extension from verifying certs (turn on if you get an error)",
+                    "mitchells-monitor.allowUnsafeSSL": {
+                        "description": "Stops the extension from verifying certs (turn on if you get an error)",
                         "type": "boolean",
                         "default": false
+                    },
+                    "mitchells-monitor.titleRegex": {
+                        "description": "Regex pattern to extract text from PR titles for display (e.g., '\\b([A-Z][A-Z0-9]+-\\d+)\\b' to extract JIRA ticket IDs). If not set or no match, PR number will be used.",
+                        "type": "string",
+                        "default": "\\b([A-Z][A-Z0-9]+-\\d+)\\b"
                     }
                 }
             }
@@ -119,6 +124,6 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/erichbehrens/pull-request-monitor.git"
+        "url": "https://github.com/commitchell/mitchells-monitor.git"
     }
 }

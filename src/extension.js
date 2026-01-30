@@ -12,6 +12,20 @@ let statusBarItems;
 
 let timer;
 
+function extractTitleText(prTitle, regexPattern) {
+	if (!regexPattern) {
+		return null;
+	}
+	try {
+		const regex = new RegExp(regexPattern);
+		const match = prTitle.match(regex);
+		return match && match[1] ? match[1] : null;
+	} catch (error) {
+		console.warn('Invalid regex pattern for PR title extraction:', error);
+		return null;
+	}
+}
+
 function createStatusBarItem(context, prId, url) {
 	const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
 	context.subscriptions.push(statusBarItem);
@@ -35,6 +49,7 @@ async function getPullRequests(context, showError) {
 		const showMerged = vscode.workspace.getConfiguration('pullRequestMonitor').get('showMerged');
 		const showClosed = vscode.workspace.getConfiguration('pullRequestMonitor').get('showClosed');
 		const count = vscode.workspace.getConfiguration('pullRequestMonitor').get('count');
+		const titleRegex = vscode.workspace.getConfiguration('pullRequestMonitor').get('titleRegex');
 		// configure the URL settings
 		const url = getEndpointUrl(vscode.workspace.getConfiguration('pullRequestMonitor').get('githubEnterpriseUrl'));
 		// configure SSL
@@ -84,9 +99,10 @@ async function getPullRequests(context, showError) {
 			const closed = mergeableState === 'CLOSED';
 
 			const statusBarItem = statusBarItems[prId];
+			const displayText = extractTitleText(pr.title, titleRegex) || pr.number;
 			const text = [
 				getPullRequestStateIcon(pr.state),
-				pr.number,
+				displayText,
 				!pr.merged && !closed && getCommitIcon(pr.commits.nodes[0].commit.status),
 				!pr.merged && !closed && getMergeableIcon(pr.mergeable),
 				hasComments && '$(comment)',
