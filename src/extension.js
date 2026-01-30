@@ -29,7 +29,7 @@ function extractTitleText(prTitle, regexPattern) {
 function createStatusBarItem(context, prId, url) {
 	const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
 	context.subscriptions.push(statusBarItem);
-	const disposable = vscode.commands.registerCommand(`PullRequestMonitor.openPullRequest.${prId}`, () => {
+	const disposable = vscode.commands.registerCommand(`mitchells-monitor.openPullRequest.${prId}`, () => {
 		vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(url));
 	});
 	context.subscriptions.push(disposable);
@@ -46,28 +46,30 @@ async function getPullRequests(context, showError) {
 	try {
 		const mode = context.globalState.get('mode', MODES.VIEWER);
 		const repository = context.globalState.get('currentRepository');
-		const showMerged = vscode.workspace.getConfiguration('pullRequestMonitor').get('showMerged');
-		const showClosed = vscode.workspace.getConfiguration('pullRequestMonitor').get('showClosed');
-		const count = vscode.workspace.getConfiguration('pullRequestMonitor').get('count');
-		const titleRegex = vscode.workspace.getConfiguration('pullRequestMonitor').get('titleRegex');
+		const showMerged = vscode.workspace.getConfiguration('mitchells-monitor').get('showMerged');
+		const showClosed = vscode.workspace.getConfiguration('mitchells-monitor').get('showClosed');
+		const count = vscode.workspace.getConfiguration('mitchells-monitor').get('count');
+		const titleRegex = vscode.workspace.getConfiguration('mitchells-monitor').get('titleRegex');
+		// configure custom colors
+		const colorConfig = vscode.workspace.getConfiguration('mitchells-monitor').get('colors') || {};
 		// configure the URL settings
-		const url = getEndpointUrl(vscode.workspace.getConfiguration('pullRequestMonitor').get('githubEnterpriseUrl'));
+		const url = getEndpointUrl(vscode.workspace.getConfiguration('mitchells-monitor').get('githubEnterpriseUrl'));
 		// configure SSL
-		const allowUnsafeSSL = vscode.workspace.getConfiguration('pullRequestMonitor').get('allowUnsafeSSL');
+		const allowUnsafeSSL = vscode.workspace.getConfiguration('mitchells-monitor').get('allowUnsafeSSL');
 		const updatedPullRequests = await loadPullRequests(context.globalState.get('token'), { mode, showMerged, showClosed, repository, showError, count, url, allowUnsafeSSL });
 		if (updatedPullRequests.code === 401) {
-			refreshButton.command = 'PullRequestMonitor.setToken';
+			refreshButton.command = 'mitchells-monitor.setToken';
 			refreshButton.text = '$(key)';
 			refreshButton.tooltip = 'Set GitHub token for Pull Request Monitor';
 			return;
 		}
 		if (updatedPullRequests.status === 'error') {
-			refreshButton.command = 'PullRequestMonitor.refresh.showError';
+			refreshButton.command = 'mitchells-monitor.refresh.showError';
 			refreshButton.text = '$(zap)';
 			refreshButton.tooltip = 'Connect Pull Request Monitor';
 			overrideRefreshInterval = 15;
 		} else {
-			refreshButton.command = 'PullRequestMonitor.refresh';
+			refreshButton.command = 'mitchells-monitor.refresh';
 			refreshButton.text = '$(sync)';
 			refreshButton.tooltip = 'Refresh Pull Request Monitor';
 			pullRequests = updatedPullRequests.data;
@@ -110,8 +112,8 @@ async function getPullRequests(context, showError) {
 				isApproved && '$(thumbsup)',
 			];
 			statusBarItem.text = text.filter(item => item).join(' ');
-			statusBarItem.color = getColor(mergeableState);
-			statusBarItem.command = `PullRequestMonitor.openPullRequest.${prId}`;
+			statusBarItem.color = getColor(mergeableState, colorConfig);
+			statusBarItem.command = `mitchells-monitor.openPullRequest.${prId}`;
 			statusBarItem.tooltip = pr.title;
 			statusBarItem.prominentBackground = true;
 			statusBarItem.show();
@@ -121,7 +123,7 @@ async function getPullRequests(context, showError) {
 		vscode.window.showErrorMessage('Pull Request Monitor error rendering');
 	}
 	// we store the interval in seconds and prevent the users to set a value lower than 15s
-	const userRefreshInterval = overrideRefreshInterval || Number.parseInt(vscode.workspace.getConfiguration('pullRequestMonitor').get('refreshInterval'), 10);
+	const userRefreshInterval = overrideRefreshInterval || Number.parseInt(vscode.workspace.getConfiguration('mitchells-monitor').get('refreshInterval'), 10);
 	const refreshInterval = userRefreshInterval >= 15 ? userRefreshInterval : 60;
 	if (!refreshInterval) return;
 	timer = setTimeout(() => getPullRequests(context), refreshInterval * 1000);
@@ -142,19 +144,19 @@ function setRepository(context, nameWithOwner) {
 
 function activate(context) {
 	noResultsLabel = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
-	noResultsLabel.command = 'PullRequestMonitor.selectRepository';
+	noResultsLabel.command = 'mitchells-monitor.selectRepository';
 	noResultsLabel.text = 'No PRs';
 	noResultsLabel.tooltip = 'Select another repository';
 	context.subscriptions.push(noResultsLabel);
 
 	refreshButton = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
-	refreshButton.command = 'PullRequestMonitor.refresh';
+	refreshButton.command = 'mitchells-monitor.refresh';
 	refreshButton.text = '$(sync)';
 	refreshButton.tooltip = 'Refresh Pull Request Monitor';
 	refreshButton.show();
 	context.subscriptions.push(refreshButton);
 
-	let disposable = vscode.commands.registerCommand('PullRequestMonitor.start', (options = {}) => {
+	let disposable = vscode.commands.registerCommand('mitchells-monitor.start', (options = {}) => {
 		const { silent } = options;
 		getPullRequests(context);
 		if (!silent) vscode.window.showInformationMessage('Pull Request Monitor started!');
@@ -162,32 +164,32 @@ function activate(context) {
 
 	context.subscriptions.push(disposable);
 
-	disposable = vscode.commands.registerCommand('PullRequestMonitor.stop', () => {
+	disposable = vscode.commands.registerCommand('mitchells-monitor.stop', () => {
 		clearTimeout(timer);
 		vscode.window.showInformationMessage('Pull Request Monitor stopped!');
 	});
 
 	context.subscriptions.push(disposable);
 
-	disposable = vscode.commands.registerCommand('PullRequestMonitor.refresh', () => {
+	disposable = vscode.commands.registerCommand('mitchells-monitor.refresh', () => {
 		getPullRequests(context);
 		vscode.window.showInformationMessage('Pull Request Monitor refreshing');
 	});
 
 	context.subscriptions.push(disposable);
 
-	disposable = vscode.commands.registerCommand('PullRequestMonitor.refresh.showError', () => {
+	disposable = vscode.commands.registerCommand('mitchells-monitor.refresh.showError', () => {
 		getPullRequests(context, true);
 		vscode.window.showInformationMessage('Pull Request Monitor refreshing');
 	});
 
 	context.subscriptions.push(disposable);
 
-	disposable = vscode.commands.registerCommand('PullRequestMonitor.setMode', async () => {
+	disposable = vscode.commands.registerCommand('mitchells-monitor.setMode', async () => {
 		const selectedMode = await vscode.window.showQuickPick([MODES.REPOSITORY, MODES.VIEWER], { placeHolder: 'Please select the mode' });
 		if (selectedMode && context.globalState.get('mode') !== selectedMode) {
 			if (selectedMode === MODES.REPOSITORY && !context.globalState.get('currentRepository')) {
-				vscode.commands.executeCommand('PullRequestMonitor.selectRepository');
+				vscode.commands.executeCommand('mitchells-monitor.selectRepository');
 				return;
 			}
 			context.globalState.update('mode', selectedMode);
@@ -197,9 +199,9 @@ function activate(context) {
 
 	context.subscriptions.push(disposable);
 
-	disposable = vscode.commands.registerCommand('PullRequestMonitor.selectRepository', async () => {
-		const url = getEndpointUrl(vscode.workspace.getConfiguration('pullRequestMonitor').get('githubEnterpriseUrl'));
-		const allowUnsafeSSL = vscode.workspace.getConfiguration('pullRequestMonitor').get('allowUnsafeSSL');
+	disposable = vscode.commands.registerCommand('mitchells-monitor.selectRepository', async () => {
+		const url = getEndpointUrl(vscode.workspace.getConfiguration('mitchells-monitor').get('githubEnterpriseUrl'));
+		const allowUnsafeSSL = vscode.workspace.getConfiguration('mitchells-monitor').get('allowUnsafeSSL');
 		const { data: repositories } = await loadRepositories(context.globalState.get('token'), { url, allowUnsafeSSL });
 		if (!repositories) {
 			return;
@@ -211,14 +213,14 @@ function activate(context) {
 
 	context.subscriptions.push(disposable);
 
-	disposable = vscode.commands.registerCommand('PullRequestMonitor.enterRepositoryName', async () => {
+	disposable = vscode.commands.registerCommand('mitchells-monitor.enterRepositoryName', async () => {
 		const selectedRepository = await vscode.window.showInputBox({ placeHolder: 'Please enter the full repository name, ie: your-team/awesome-project' });
 		setRepository(context, selectedRepository);
 	});
 
 	context.subscriptions.push(disposable);
 
-	disposable = vscode.commands.registerCommand('PullRequestMonitor.setToken', async () => {
+	disposable = vscode.commands.registerCommand('mitchells-monitor.setToken', async () => {
 		const token = await vscode.window.showInputBox({ placeHolder: 'Please enter your GitHGub token' });
 		if (token) {
 			context.globalState.update('token', token);
@@ -229,8 +231,8 @@ function activate(context) {
 
 	context.subscriptions.push(disposable);
 
-	if (vscode.workspace.getConfiguration('pullRequestMonitor').get('autostart') && context.globalState.get('token')) {
-		vscode.commands.executeCommand('PullRequestMonitor.start', { silent: true });
+	if (vscode.workspace.getConfiguration('mitchells-monitor').get('autostart') && context.globalState.get('token')) {
+		vscode.commands.executeCommand('mitchells-monitor.start', { silent: true });
 	}
 }
 exports.activate = activate;

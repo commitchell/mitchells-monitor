@@ -101,6 +101,33 @@
                         "description": "Regex pattern to extract text from PR titles for display (e.g., '\\b([A-Z][A-Z0-9]+-\\d+)\\b' to extract JIRA ticket IDs). If not set or no match, PR number will be used.",
                         "type": "string",
                         "default": "\\b([A-Z][A-Z0-9]+-\\d+)\\b"
+                    },
+                    "mitchells-monitor.colors": {
+                        "description": "Custom colors for pull request states. Specify any of: merged, mergeable, closed, failure, default. Example: { \"merged\": \"#be9af0\", \"mergeable\": \"#80d394\" }",
+                        "type": "object",
+                        "default": {},
+                        "properties": {
+                            "merged": {
+                                "type": "string",
+                                "description": "Color for merged pull requests"
+                            },
+                            "mergeable": {
+                                "type": "string",
+                                "description": "Color for mergeable pull requests"
+                            },
+                            "closed": {
+                                "type": "string",
+                                "description": "Color for closed pull requests"
+                            },
+                            "failure": {
+                                "type": "string",
+                                "description": "Color for failed pull requests"
+                            },
+                            "default": {
+                                "type": "string",
+                                "description": "Default color for pull requests in other states"
+                            }
+                        }
                     }
                 }
             }

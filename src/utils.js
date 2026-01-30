@@ -26,13 +26,13 @@ exports.getPullRequestStateIcon = (value) => {
 	}
 };
 
-exports.getColor = (mergeableState) => {
+exports.getColor = (mergeableState, colorConfig = {}) => {
 	switch (mergeableState) {
-		case 'MERGED': return 'rgba(144, 0, 192, 1)'; // #9000c0
-		case 'MERGEABLE': return 'rgba(64, 255, 16, 1)'; // #40ff10
-		case 'CLOSED':
-		case 'FAILURE': return 'rgba(144, 0, 0, 1)'; // #900000
-		default: return 'rgba(255, 255, 255, 1)';
+		case 'MERGED': return colorConfig.merged || 'rgba(190, 154, 240, 1)'; // #be9af0
+		case 'MERGEABLE': return colorConfig.mergeable || 'rgba(128, 211, 148, 1)'; // #80d394
+		case 'CLOSED': return colorConfig.closed || 'rgba(58, 62, 62, 1)'; // #3A3E3E
+		case 'FAILURE': return colorConfig.failure || 'rgba(255, 110, 110, 1)'; // #FF6E6E
+		default: return colorConfig.default || 'rgba(144, 155, 155, 1)'; // #909B9B
 	}
 };
 
