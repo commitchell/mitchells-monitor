@@ -157,3 +157,25 @@ export const getEndpointUrl = (githubEnterpriseUrl: string | null | undefined): 
     }
     return "https://api.github.com/graphql";
 };
+
+/**
+ * Parse a GitHub repository owner and name from a git remote URL.
+ * Supports both HTTPS and SSH URL formats.
+ */
+export const parseGitHubRepoFromRemoteUrl = (
+    remoteUrl: string,
+): { owner: string; name: string } | null => {
+    // Handle SSH format: git@github.com:owner/repo.git
+    const sshMatch = remoteUrl.match(/git@[^:]+:([^/]+)\/(.+?)(?:\.git)?$/);
+    if (sshMatch) {
+        return { owner: sshMatch[1], name: sshMatch[2] };
+    }
+
+    // Handle HTTPS format: https://github.com/owner/repo.git
+    const httpsMatch = remoteUrl.match(/https?:\/\/[^/]+\/([^/]+)\/(.+?)(?:\.git)?$/);
+    if (httpsMatch) {
+        return { owner: httpsMatch[1], name: httpsMatch[2] };
+    }
+
+    return null;
+};

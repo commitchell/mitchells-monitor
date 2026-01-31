@@ -111,6 +111,7 @@ export interface StatusBarItems {
 
 export const MODES = {
     VIEWER: "viewer",
+    SMART_VIEWER: "smart-viewer",
     REPOSITORY: "repository",
 } as const;
 

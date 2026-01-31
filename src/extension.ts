@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as childProcess from "child_process";
 import {
     getCommitIcon,
     getColor,
@@ -7,6 +8,7 @@ import {
     getPullRequestStateIcon,
     getReviewState,
     getEndpointUrl,
+    parseGitHubRepoFromRemoteUrl,
 } from "./utils";
 import { loadPullRequests, loadRepositories } from "./requests";
 import type { ColorConfig, CurrentRepository, PullRequest, StatusBarItems } from "./types";
@@ -17,6 +19,55 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 let pullRequests: PullRequest[] = [];
 let refreshButton: vscode.StatusBarItem;
 let noResultsLabel: vscode.StatusBarItem;
+
+/**
+ * Detect GitHub repositories from all workspace folders by reading git remotes.
+ * Returns an array of unique repository infos found across all workspace folders.
+ */
+const detectWorkspaceRepositories = async (): Promise<CurrentRepository[]> => {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        return [];
+    }
+
+    const detectRepoInFolder = (folderPath: string): Promise<CurrentRepository | undefined> => {
+        return new Promise((resolve) => {
+            childProcess.exec("git remote get-url origin", { cwd: folderPath }, (error, stdout) => {
+                if (error) {
+                    resolve(undefined);
+                    return;
+                }
+
+                const remoteUrl = stdout.trim();
+                const repoInfo = parseGitHubRepoFromRemoteUrl(remoteUrl);
+
+                if (repoInfo) {
+                    resolve({
+                        nameWithOwner: `${repoInfo.owner}/${repoInfo.name}`,
+                        owner: repoInfo.owner,
+                        name: repoInfo.name,
+                    });
+                } else {
+                    resolve(undefined);
+                }
+            });
+        });
+    };
+
+    const repoPromises = workspaceFolders.map((folder) => detectRepoInFolder(folder.uri.fsPath));
+    const results = await Promise.all(repoPromises);
+
+    // Filter out undefined and deduplicate by nameWithOwner
+    const seen = new Set<string>();
+    const toReturn = results.filter((repo): repo is CurrentRepository => {
+        if (!repo || seen.has(repo.nameWithOwner)) {
+            return false;
+        }
+        seen.add(repo.nameWithOwner);
+        return true;
+    });
+    return toReturn;
+};
 
 const extractTitleText = (
     prTitle: string,
@@ -73,15 +124,38 @@ const getPullRequests = async (
         const url = getEndpointUrl(config.get<string | null>("githubEnterpriseUrl", null));
         const allowUnsafeSSL = config.get<boolean>("allowUnsafeSSL", false);
 
+        // Determine effective mode and repository for smart viewer
+        let effectiveMode = mode;
+        let effectiveRepository = repository;
+        let workspaceRepoNames: Set<string> | undefined;
+
+        if (mode === MODES.SMART_VIEWER) {
+            const workspaceRepos = await detectWorkspaceRepositories();
+            if (workspaceRepos.length === 1) {
+                // Single repo detected - use repository mode for efficiency
+                effectiveMode = MODES.REPOSITORY;
+                effectiveRepository = workspaceRepos[0];
+            } else if (workspaceRepos.length > 1) {
+                // Multiple repos detected - fetch all PRs and filter client-side
+                effectiveMode = MODES.VIEWER;
+                effectiveRepository = undefined;
+                workspaceRepoNames = new Set(workspaceRepos.map((r) => r.nameWithOwner));
+            } else {
+                // No repos detected - fall back to viewer mode
+                effectiveMode = MODES.VIEWER;
+                effectiveRepository = undefined;
+            }
+        }
+
         const updatedPullRequests = await loadPullRequests(
             context.globalState.get<string>("token"),
             {
-                mode,
+                mode: effectiveMode,
                 showMerged,
                 showClosed,
-                repository,
+                repository: effectiveRepository,
                 showError,
-                count,
+                count: workspaceRepoNames ? count * workspaceRepoNames.size : count,
                 url,
                 allowUnsafeSSL,
             },
@@ -104,7 +178,21 @@ const getPullRequests = async (
             refreshButton.command = "mitchells-monitor.refresh";
             refreshButton.text = "$(sync)";
             refreshButton.tooltip = "Refresh pull requests";
-            pullRequests = updatedPullRequests.data || [];
+
+            // Filter PRs if we detected multiple workspace repos
+            const allPRs = updatedPullRequests.data || [];
+
+            if (workspaceRepoNames) {
+                pullRequests = allPRs
+                    .filter((pr) => {
+                        const prRepoName = pr.repository.nameWithOwner || "";
+                        const matches = workspaceRepoNames.has(prRepoName);
+                        return matches;
+                    })
+                    .slice(0, count);
+            } else {
+                pullRequests = allPRs;
+            }
         }
 
         if (!statusBarItems) {
@@ -210,6 +298,19 @@ export const activate = (context: vscode.ExtensionContext): void => {
     refreshButton.show();
     context.subscriptions.push(refreshButton);
 
+    // Auto-refresh when workspace folders change (for smart-viewer mode)
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeWorkspaceFolders(() => {
+            const mode = context.globalState.get<Mode>("mode", MODES.VIEWER);
+            if (mode === MODES.SMART_VIEWER) {
+                console.log(
+                    "[Smart Viewer] Workspace folders changed, refreshing pull requests...",
+                );
+                getPullRequests(context);
+            }
+        }),
+    );
+
     context.subscriptions.push(
         vscode.commands.registerCommand(
             "mitchells-monitor.start",
@@ -234,6 +335,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
     context.subscriptions.push(
         vscode.commands.registerCommand("mitchells-monitor.refresh", () => {
+            console.log("Hi mitchell!!");
             getPullRequests(context);
             vscode.window.showInformationMessage(
                 "Mitchell's Monitor - Refreshing pull requests...",
@@ -254,12 +356,17 @@ export const activate = (context: vscode.ExtensionContext): void => {
         vscode.commands.registerCommand("mitchells-monitor.setMode", async () => {
             const currentMode = context.globalState.get<Mode>("mode", MODES.VIEWER);
 
-            const selectedMode = await vscode.window.showQuickPick(
-                [MODES.REPOSITORY, MODES.VIEWER],
-                {
-                    placeHolder: `Current mode: ${currentMode}`,
-                },
-            );
+            const modeOptions = [
+                { label: MODES.SMART_VIEWER, description: "Auto-detect repository from workspace" },
+                { label: MODES.VIEWER, description: "Show all your pull requests" },
+                { label: MODES.REPOSITORY, description: "Show PRs from a specific repository" },
+            ];
+
+            const selectedOption = await vscode.window.showQuickPick(modeOptions, {
+                placeHolder: `Current mode: ${currentMode}`,
+            });
+
+            const selectedMode = selectedOption?.label as Mode | undefined;
 
             if (selectedMode && context.globalState.get("mode") !== selectedMode) {
                 if (

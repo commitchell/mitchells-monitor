@@ -7,6 +7,7 @@ import {
     getPullRequestStateIcon,
     getStatesFilter,
     getEndpointUrl,
+    parseGitHubRepoFromRemoteUrl,
 } from "../src/utils";
 import { createMockPullRequest, SAMPLE_PULL_REQUESTS } from "./fixtures";
 
@@ -157,5 +158,49 @@ describe("Utils - Endpoint URL", () => {
         expect(getEndpointUrl("https://github.mycompany.com")).toBe(
             "https://github.mycompany.com/api/graphql",
         );
+    });
+});
+
+describe("Utils - parseGitHubRepoFromRemoteUrl", () => {
+    it("parses SSH URL format", () => {
+        const result = parseGitHubRepoFromRemoteUrl("git@github.com:owner/repo.git");
+        expect(result).toEqual({ owner: "owner", name: "repo" });
+    });
+
+    it("parses SSH URL without .git suffix", () => {
+        const result = parseGitHubRepoFromRemoteUrl("git@github.com:owner/repo");
+        expect(result).toEqual({ owner: "owner", name: "repo" });
+    });
+
+    it("parses HTTPS URL format", () => {
+        const result = parseGitHubRepoFromRemoteUrl("https://github.com/owner/repo.git");
+        expect(result).toEqual({ owner: "owner", name: "repo" });
+    });
+
+    it("parses HTTPS URL without .git suffix", () => {
+        const result = parseGitHubRepoFromRemoteUrl("https://github.com/owner/repo");
+        expect(result).toEqual({ owner: "owner", name: "repo" });
+    });
+
+    it("parses GitHub Enterprise SSH URL", () => {
+        const result = parseGitHubRepoFromRemoteUrl("git@github.mycompany.com:team/project.git");
+        expect(result).toEqual({ owner: "team", name: "project" });
+    });
+
+    it("parses GitHub Enterprise HTTPS URL", () => {
+        const result = parseGitHubRepoFromRemoteUrl(
+            "https://github.mycompany.com/team/project.git",
+        );
+        expect(result).toEqual({ owner: "team", name: "project" });
+    });
+
+    it("returns null for invalid URLs", () => {
+        expect(parseGitHubRepoFromRemoteUrl("not-a-url")).toBeNull();
+        expect(parseGitHubRepoFromRemoteUrl("")).toBeNull();
+    });
+
+    it("handles repos with hyphens and underscores", () => {
+        const result = parseGitHubRepoFromRemoteUrl("git@github.com:my-org/my_repo-name.git");
+        expect(result).toEqual({ owner: "my-org", name: "my_repo-name" });
     });
 });

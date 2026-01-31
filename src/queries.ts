@@ -5,6 +5,10 @@ export const viewer = `query {
           nodes {
             repository{
               name
+              nameWithOwner
+              owner {
+                login
+              }
             }
             number
             mergeable
@@ -51,6 +55,10 @@ export const repository = `{
       nodes {
         repository{
           name
+          nameWithOwner
+          owner {
+            login
+          }
         }
         number
         mergeable
