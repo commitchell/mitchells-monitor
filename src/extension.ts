@@ -10,9 +10,8 @@ import {
     getEndpointUrl,
     parseGitHubRepoFromRemoteUrl,
 } from "./utils";
-import { loadPullRequests, loadRepositories } from "./requests";
+import { loadPullRequests } from "./requests";
 import type { ColorConfig, CurrentRepository, PullRequest, StatusBarItems } from "./types";
-import { MODES, type Mode } from "./types";
 
 let statusBarItems: StatusBarItems | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -59,14 +58,13 @@ const detectWorkspaceRepositories = async (): Promise<CurrentRepository[]> => {
 
     // Filter out undefined and deduplicate by nameWithOwner
     const seen = new Set<string>();
-    const toReturn = results.filter((repo): repo is CurrentRepository => {
+    return results.filter((repo): repo is CurrentRepository => {
         if (!repo || seen.has(repo.nameWithOwner)) {
             return false;
         }
         seen.add(repo.nameWithOwner);
         return true;
     });
-    return toReturn;
 };
 
 const extractTitleText = (
@@ -87,7 +85,7 @@ const extractTitleText = (
 };
 
 const createStatusBarItem = (context: vscode.ExtensionContext, prId: string, url: string): void => {
-    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
     context.subscriptions.push(statusBarItem);
     const disposable = vscode.commands.registerCommand(
         `mitchells-monitor.openPullRequest.${prId}`,
@@ -113,9 +111,6 @@ const getPullRequests = async (
     const fetchAndRenderPullRequests = async (
         config: vscode.WorkspaceConfiguration,
     ): Promise<number | undefined> => {
-        const mode = context.globalState.get<Mode>("mode", MODES.VIEWER);
-        const repository = context.globalState.get<CurrentRepository>("currentRepository");
-
         const showMerged = config.get<boolean>("showMerged", false);
         const showClosed = config.get<boolean>("showClosed", false);
         const count = config.get<number>("count", 6);
@@ -123,43 +118,39 @@ const getPullRequests = async (
         const colorConfig = config.get<ColorConfig>("colors", {});
         const url = getEndpointUrl(config.get<string | null>("githubEnterpriseUrl", null));
         const allowUnsafeSSL = config.get<boolean>("allowUnsafeSSL", false);
+        const token = context.globalState.get<string>("token");
 
-        // Determine effective mode and repository for smart viewer
-        let effectiveMode = mode;
-        let effectiveRepository = repository;
-        let workspaceRepoNames: Set<string> | undefined;
-
-        if (mode === MODES.SMART_VIEWER) {
-            const workspaceRepos = await detectWorkspaceRepositories();
-            if (workspaceRepos.length === 1) {
-                // Single repo detected - use repository mode for efficiency
-                effectiveMode = MODES.REPOSITORY;
-                effectiveRepository = workspaceRepos[0];
-            } else if (workspaceRepos.length > 1) {
-                // Multiple repos detected - fetch all PRs and filter client-side
-                effectiveMode = MODES.VIEWER;
-                effectiveRepository = undefined;
-                workspaceRepoNames = new Set(workspaceRepos.map((r) => r.nameWithOwner));
-            } else {
-                // No repos detected - fall back to viewer mode
-                effectiveMode = MODES.VIEWER;
-                effectiveRepository = undefined;
-            }
+        if (!token) {
+            vscode.window.showWarningMessage(
+                "Mitchell's Monitor - Please enter a token to begin monitoring!",
+            );
+            return undefined;
         }
 
-        const updatedPullRequests = await loadPullRequests(
-            context.globalState.get<string>("token"),
-            {
-                mode: effectiveMode,
-                showMerged,
-                showClosed,
-                repository: effectiveRepository,
-                showError,
-                count: workspaceRepoNames ? count * workspaceRepoNames.size : count,
-                url,
-                allowUnsafeSSL,
-            },
-        );
+        // Detect workspace repositories for smart filtering
+        const workspaceRepos = await detectWorkspaceRepositories();
+        let repository: CurrentRepository | undefined;
+        let workspaceRepoNames: Set<string> | undefined;
+
+        if (workspaceRepos.length === 1) {
+            // Single repo detected - use repository mode for efficiency
+            repository = workspaceRepos[0];
+        } else if (workspaceRepos.length > 1) {
+            // Multiple repos detected - fetch all PRs and filter client-side
+            workspaceRepoNames = new Set(workspaceRepos.map((r) => r.nameWithOwner));
+        }
+        // If no repos detected, fetch all PRs (viewer mode behavior)
+
+        const updatedPullRequests = await loadPullRequests({
+            token,
+            showMerged,
+            showClosed,
+            showError,
+            count: workspaceRepoNames ? count * workspaceRepoNames.size : count,
+            url,
+            allowUnsafeSSL,
+            repository,
+        });
 
         if (updatedPullRequests.code === 401) {
             refreshButton.command = "mitchells-monitor.setToken";
@@ -186,8 +177,7 @@ const getPullRequests = async (
                 pullRequests = allPRs
                     .filter((pr) => {
                         const prRepoName = pr.repository.nameWithOwner || "";
-                        const matches = workspaceRepoNames.has(prRepoName);
-                        return matches;
+                        return workspaceRepoNames.has(prRepoName);
                     })
                     .slice(0, count);
             } else {
@@ -265,49 +255,24 @@ const getPullRequests = async (
     timer = setTimeout(() => getPullRequests(context), refreshInterval * 1000);
 };
 
-const setRepository = (
-    context: vscode.ExtensionContext,
-    nameWithOwner: string | undefined,
-): void => {
-    const currentRepository = context.globalState.get<CurrentRepository>("currentRepository");
-    if (
-        nameWithOwner &&
-        (!currentRepository || currentRepository.nameWithOwner !== nameWithOwner)
-    ) {
-        context.globalState.update("currentRepository", {
-            nameWithOwner,
-            owner: nameWithOwner.split("/")[0],
-            name: nameWithOwner.split("/")[1],
-        });
-        context.globalState.update("mode", MODES.REPOSITORY);
-        getPullRequests(context);
-    }
-};
-
 export const activate = (context: vscode.ExtensionContext): void => {
-    noResultsLabel = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
-    noResultsLabel.command = "mitchells-monitor.selectRepository";
+    noResultsLabel = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+    noResultsLabel.command = "mitchells-monitor.refresh";
     noResultsLabel.text = "No PRs";
-    noResultsLabel.tooltip = "Select another repository";
+    noResultsLabel.tooltip = "Refresh pull requests";
     context.subscriptions.push(noResultsLabel);
 
-    refreshButton = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+    refreshButton = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
     refreshButton.command = "mitchells-monitor.refresh";
     refreshButton.text = "$(sync)";
     refreshButton.tooltip = "Refresh pull requests";
     refreshButton.show();
     context.subscriptions.push(refreshButton);
 
-    // Auto-refresh when workspace folders change (for smart-viewer mode)
+    // Auto-refresh when workspace folders change
     context.subscriptions.push(
         vscode.workspace.onDidChangeWorkspaceFolders(() => {
-            const mode = context.globalState.get<Mode>("mode", MODES.VIEWER);
-            if (mode === MODES.SMART_VIEWER) {
-                console.log(
-                    "[Smart Viewer] Workspace folders changed, refreshing pull requests...",
-                );
-                getPullRequests(context);
-            }
+            getPullRequests(context);
         }),
     );
 
@@ -335,7 +300,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
 
     context.subscriptions.push(
         vscode.commands.registerCommand("mitchells-monitor.refresh", () => {
-            console.log("Hi mitchell!!");
             getPullRequests(context);
             vscode.window.showInformationMessage(
                 "Mitchell's Monitor - Refreshing pull requests...",
@@ -349,73 +313,6 @@ export const activate = (context: vscode.ExtensionContext): void => {
             vscode.window.showInformationMessage(
                 "Mitchell's Monitor - Attempting to connect to remote...",
             );
-        }),
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand("mitchells-monitor.setMode", async () => {
-            const currentMode = context.globalState.get<Mode>("mode", MODES.VIEWER);
-
-            const modeOptions = [
-                { label: MODES.SMART_VIEWER, description: "Auto-detect repository from workspace" },
-                { label: MODES.VIEWER, description: "Show all your pull requests" },
-                { label: MODES.REPOSITORY, description: "Show PRs from a specific repository" },
-            ];
-
-            const selectedOption = await vscode.window.showQuickPick(modeOptions, {
-                placeHolder: `Current mode: ${currentMode}`,
-            });
-
-            const selectedMode = selectedOption?.label as Mode | undefined;
-
-            if (selectedMode && context.globalState.get("mode") !== selectedMode) {
-                if (
-                    selectedMode === MODES.REPOSITORY &&
-                    !context.globalState.get("currentRepository")
-                ) {
-                    vscode.commands.executeCommand("mitchells-monitor.selectRepository");
-                    return;
-                }
-                context.globalState.update("mode", selectedMode);
-                getPullRequests(context);
-            }
-        }),
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand("mitchells-monitor.selectRepository", async () => {
-            const config = vscode.workspace.getConfiguration("mitchells-monitor");
-            const url = getEndpointUrl(config.get<string | null>("githubEnterpriseUrl", null));
-            const allowUnsafeSSL = config.get<boolean>("allowUnsafeSSL", false);
-            const { data: repositories } = await loadRepositories(
-                context.globalState.get<string>("token"),
-                { url, allowUnsafeSSL },
-            );
-
-            if (!repositories) {
-                return;
-            }
-
-            const repositoryNames = repositories.map(
-                (repository) => repository.nameWithOwner || "",
-            );
-
-            const selectedRepository = await vscode.window.showQuickPick(
-                repositoryNames.filter((name) => name),
-                { placeHolder: "Choose the repository you would like to monitor" },
-            );
-
-            setRepository(context, selectedRepository);
-        }),
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand("mitchells-monitor.enterRepositoryName", async () => {
-            const selectedRepository = await vscode.window.showInputBox({
-                placeHolder:
-                    "Please enter the name of your repository e.g. kieran/lots-of-terraform",
-            });
-            setRepository(context, selectedRepository);
         }),
     );
 

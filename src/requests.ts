@@ -4,44 +4,18 @@ import * as queries from "./queries";
 import { getStatesFilter } from "./utils";
 import type {
     ApiResponse,
+    GraphQLResponse,
     LoadPullRequestsOptions,
-    LoadRepositoriesOptions,
     PullRequest,
-    Repository,
+    PullRequestData,
+    RepositoryPullRequestsData,
+    ViewerPullRequestsData,
 } from "./types";
 
 let errorCount = 0;
 
-interface GraphQLResponse<T> {
-    data?: T;
-}
-
-interface ViewerPullRequestsData {
-    viewer: {
-        pullRequests: {
-            nodes: PullRequest[];
-        };
-    };
-}
-
-interface RepositoryPullRequestsData {
-    repository: {
-        pullRequests: {
-            nodes: PullRequest[];
-        };
-    };
-}
-
-interface ViewerRepositoriesData {
-    viewer: {
-        repositories: {
-            nodes: Repository[];
-        };
-    };
-}
-
 const execQuery = async <T>(
-    token: string | undefined,
+    token: string,
     query: string,
     showError: boolean,
     graphqlEndpoint: string,
@@ -56,13 +30,6 @@ const execQuery = async <T>(
 
     if (showError) {
         errorCount = 0;
-    }
-
-    if (!token) {
-        vscode.window.showWarningMessage(
-            "Mitchell's Monitor - Please enter a token to begin monitoring!",
-        );
-        return { status: "error" };
     }
 
     try {
@@ -107,31 +74,25 @@ const execQuery = async <T>(
     }
 };
 
-export const loadPullRequests = async (
-    token: string | undefined,
-    options: LoadPullRequestsOptions,
-): Promise<ApiResponse<PullRequest[]>> => {
-    const { mode, showMerged, showClosed, repository, showError, count, url, allowUnsafeSSL } =
-        options;
+export const loadPullRequests = async ({
+    token,
+    showMerged,
+    showClosed,
+    showError,
+    count,
+    url,
+    allowUnsafeSSL,
+    repository,
+}: LoadPullRequestsOptions): Promise<ApiResponse<PullRequest[]>> => {
+    const queryTemplate = repository ? queries.repository : queries.viewer;
 
-    const queryTemplate = mode === "viewer" ? queries.viewer : queries.repository;
-    const baseQuery = queryTemplate
+    let query = queryTemplate
         .replace("@states", getStatesFilter(showMerged, showClosed))
         .replace("@count", String(count));
-
-    if (mode === "repository" && !repository) {
-        vscode.window.showWarningMessage(
-            "Mitchell's Monitor - You are in repository mode. Select a repository to start monitoring!",
-        );
-        return { status: "error" };
+    if (repository) {
+        query = query.replace("@owner", repository.owner).replace("@name", repository.name);
     }
 
-    const query =
-        mode === "repository" && repository
-            ? baseQuery.replace("@owner", repository.owner).replace("@name", repository.name)
-            : baseQuery;
-
-    type PullRequestData = ViewerPullRequestsData | RepositoryPullRequestsData;
     const { status, code, data } = await execQuery<PullRequestData>(
         token,
         query,
@@ -141,25 +102,9 @@ export const loadPullRequests = async (
     );
 
     const pullRequests = data
-        ? mode === "viewer"
-            ? (data as ViewerPullRequestsData).viewer.pullRequests.nodes
-            : (data as RepositoryPullRequestsData).repository.pullRequests.nodes
+        ? repository
+            ? (data as RepositoryPullRequestsData).repository.pullRequests.nodes
+            : (data as ViewerPullRequestsData).viewer.pullRequests.nodes
         : undefined;
     return { status, code, data: pullRequests };
-};
-
-export const loadRepositories = async (
-    token: string | undefined,
-    options: LoadRepositoriesOptions,
-): Promise<ApiResponse<Repository[]>> => {
-    const { url, allowUnsafeSSL } = options;
-    const { status, code, data } = await execQuery<ViewerRepositoriesData>(
-        token,
-        queries.repositories,
-        true,
-        url,
-        allowUnsafeSSL,
-    );
-    const repositories = data?.viewer.repositories.nodes;
-    return { status, code, data: repositories };
 };

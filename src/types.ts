@@ -83,21 +83,38 @@ export interface CurrentRepository {
     name: string;
 }
 
+export interface GraphQLResponse<T> {
+    data?: T;
+}
+
+export interface ViewerPullRequestsData {
+    viewer: {
+        pullRequests: {
+            nodes: PullRequest[];
+        };
+    };
+}
+
+export interface RepositoryPullRequestsData {
+    repository: {
+        pullRequests: {
+            nodes: PullRequest[];
+        };
+    };
+}
+
 export interface LoadPullRequestsOptions {
-    mode: string;
+    token: string;
     showMerged: boolean;
     showClosed: boolean;
-    repository: CurrentRepository | undefined;
     showError: boolean;
     count: number;
     url: string;
     allowUnsafeSSL: boolean;
+    repository?: CurrentRepository;
 }
 
-export interface LoadRepositoriesOptions {
-    url: string;
-    allowUnsafeSSL: boolean;
-}
+export type PullRequestData = ViewerPullRequestsData | RepositoryPullRequestsData;
 
 export interface ApiResponse<T> {
     status: "ok" | "error";
@@ -108,11 +125,3 @@ export interface ApiResponse<T> {
 export interface StatusBarItems {
     [key: string]: vscode.StatusBarItem;
 }
-
-export const MODES = {
-    VIEWER: "viewer",
-    SMART_VIEWER: "smart-viewer",
-    REPOSITORY: "repository",
-} as const;
-
-export type Mode = (typeof MODES)[keyof typeof MODES];

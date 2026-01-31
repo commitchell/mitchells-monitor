@@ -36,18 +36,6 @@
                 "title": "Mitchell's Monitor: Refresh now"
             },
             {
-                "command": "mitchells-monitor.setMode",
-                "title": "Mitchell's Monitor: Set mode"
-            },
-            {
-                "command": "mitchells-monitor.selectRepository",
-                "title": "Mitchell's Monitor: Select repository"
-            },
-            {
-                "command": "mitchells-monitor.enterRepositoryName",
-                "title": "Mitchell's Monitor: Enter repository name"
-            },
-            {
                 "command": "mitchells-monitor.setToken",
                 "title": "Mitchell's Monitor: Set GitHub token"
             }

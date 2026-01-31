@@ -1,11 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { loadPullRequests, loadRepositories } from "../src/requests";
+import { loadPullRequests } from "../src/requests";
 import {
     createViewerPullRequestsResponse,
     createRepositoryPullRequestsResponse,
-    createRepositoriesResponse,
     SAMPLE_PULL_REQUESTS,
-    SAMPLE_REPOSITORIES,
 } from "./fixtures";
 
 // Mock vscode module
@@ -33,7 +31,7 @@ describe("Requests - loadPullRequests", () => {
     });
 
     const defaultOptions = {
-        mode: "viewer",
+        useRepositoryMode: false,
         showMerged: false,
         showClosed: false,
         repository: undefined,
@@ -81,7 +79,7 @@ describe("Requests - loadPullRequests", () => {
 
         const result = await loadPullRequests("valid-token", {
             ...defaultOptions,
-            mode: "repository",
+            useRepositoryMode: true,
             repository: {
                 nameWithOwner: "test-owner/test-repo",
                 owner: "test-owner",
@@ -96,12 +94,11 @@ describe("Requests - loadPullRequests", () => {
     it("returns error when repository mode but no repository specified", async () => {
         const result = await loadPullRequests("valid-token", {
             ...defaultOptions,
-            mode: "repository",
+            useRepositoryMode: true,
             repository: undefined,
         });
 
         expect(result.status).toBe("error");
-        expect(mockShowWarning).toHaveBeenCalledOnce();
     });
 
     it("returns error with code 401 on unauthorized response", async () => {
@@ -194,69 +191,5 @@ describe("Requests - loadPullRequests", () => {
 
         expect(result.status).toBe("error");
         expect(mockShowError).toHaveBeenCalledOnce();
-    });
-});
-
-describe("Requests - loadRepositories", () => {
-    const mockShowWarning = vscode.window.showWarningMessage as ReturnType<typeof vi.fn>;
-
-    beforeEach(() => {
-        vi.stubGlobal("fetch", vi.fn());
-        vi.clearAllMocks();
-    });
-
-    afterEach(() => {
-        vi.unstubAllGlobals();
-    });
-
-    const defaultOptions = {
-        url: "https://api.github.com/graphql",
-        allowUnsafeSSL: false,
-    };
-
-    it("returns repositories on successful response", async () => {
-        const mockFetch = vi.mocked(fetch);
-        mockFetch.mockResolvedValue({
-            status: 200,
-            json: async () => createRepositoriesResponse(SAMPLE_REPOSITORIES),
-        } as Response);
-
-        const result = await loadRepositories("valid-token", defaultOptions);
-
-        expect(result.status).toBe("ok");
-        expect(result.data?.length).toBe(3);
-        expect(result.data?.[0].nameWithOwner).toBe("org/repo-1");
-    });
-
-    it("returns error when no token provided", async () => {
-        const result = await loadRepositories(undefined, defaultOptions);
-
-        expect(result.status).toBe("error");
-        expect(mockShowWarning).toHaveBeenCalledOnce();
-    });
-
-    it("returns error with code 401 on unauthorized", async () => {
-        const mockFetch = vi.mocked(fetch);
-        mockFetch.mockResolvedValue({
-            status: 401,
-        } as Response);
-
-        const result = await loadRepositories("invalid-token", defaultOptions);
-
-        expect(result.status).toBe("error");
-        expect(result.code).toBe(401);
-    });
-
-    it("handles empty repositories array", async () => {
-        const mockFetch = vi.mocked(fetch);
-        mockFetch.mockResolvedValue({
-            status: 200,
-            json: async () => createRepositoriesResponse([]),
-        } as Response);
-
-        const result = await loadRepositories("valid-token", defaultOptions);
-
-        expect(result.status).toBe("ok");
-        expect(result.data?.length).toBe(0);
     });
 });
