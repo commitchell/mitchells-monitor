@@ -1,5 +1,7 @@
 // @ts-check
 const esbuild = require("esbuild");
+const fs = require("fs");
+const path = require("path");
 
 const production = process.argv.includes("--production");
 const watch = process.argv.includes("--watch");
@@ -19,6 +21,7 @@ async function main() {
         plugins: [
             /* add to the end of plugins array */
             esbuildProblemMatcherPlugin,
+            copyAssetsPlugin,
         ],
     });
     if (watch) {
@@ -28,6 +31,43 @@ async function main() {
         await ctx.dispose();
     }
 }
+
+/**
+ * @type {import('esbuild').Plugin}
+ */
+const copyAssetsPlugin = {
+    name: "copy-assets",
+    setup(build) {
+        build.onEnd(() => {
+            const mediaDir = path.join(__dirname, "media");
+            const distMediaDir = path.join(__dirname, "dist", "media");
+
+            // Create dist/media directory if it doesn't exist
+            if (!fs.existsSync(distMediaDir)) {
+                fs.mkdirSync(distMediaDir, { recursive: true });
+            }
+
+            // Copy font files
+            if (fs.existsSync(mediaDir)) {
+                const files = fs.readdirSync(mediaDir);
+                files.forEach((file) => {
+                    const srcPath = path.join(mediaDir, file);
+                    const destPath = path.join(distMediaDir, file);
+                    fs.copyFileSync(srcPath, destPath);
+                });
+                console.log("[copy-assets] Media files copied to dist/media");
+            }
+
+            // Copy icon.png to dist
+            const iconPath = path.join(__dirname, "icon.png");
+            const distIconPath = path.join(__dirname, "dist", "icon.png");
+            if (fs.existsSync(iconPath)) {
+                fs.copyFileSync(iconPath, distIconPath);
+                console.log("[copy-assets] Extension icon copied to dist/");
+            }
+        });
+    },
+};
 
 /**
  * @type {import('esbuild').Plugin}

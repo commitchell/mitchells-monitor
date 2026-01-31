@@ -1,15 +1,12 @@
 import * as vscode from "vscode";
 import * as childProcess from "child_process";
 import {
-    getCommitIcon,
-    getColor,
-    getMergeableIcon,
-    getMergeableState,
-    getPullRequestStateIcon,
-    getReviewState,
     getEndpointUrl,
     parseGitHubRepoFromRemoteUrl,
+    getPullRequestStatus,
+    getPullRequestStatusIcon,
     generateDisplayText,
+    getPullRequestColour,
 } from "./utils";
 import { fetchPullRequests } from "./requests";
 import type { ColorConfig, CurrentRepository, PullRequest, StatusBarItems } from "./types";
@@ -22,7 +19,7 @@ let noResultsLabel: vscode.StatusBarItem;
 const createRefreshStatusBarItem = (context: vscode.ExtensionContext) => {
     refreshButton = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
     refreshButton.command = "mitchells-monitor.refresh";
-    refreshButton.text = "$(sync)";
+    refreshButton.text = "$(mitchells-monitor-sync-pull-requests)";
     refreshButton.tooltip = "Refresh pull requests";
     refreshButton.show();
     context.subscriptions.push(refreshButton);
@@ -34,6 +31,29 @@ const createNoResultsStatusBarItem = (context: vscode.ExtensionContext): void =>
     noResultsLabel.text = "No PRs";
     noResultsLabel.tooltip = "Refresh pull requests";
     context.subscriptions.push(noResultsLabel);
+};
+
+const createPRStatusBarItem = (
+    context: vscode.ExtensionContext,
+    prId: string,
+    pr: PullRequest,
+): vscode.StatusBarItem => {
+    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+    context.subscriptions.push(statusBarItem);
+
+    const disposable = vscode.commands.registerCommand(
+        `mitchells-monitor.openPullRequest.${prId}`,
+        () => {
+            vscode.commands.executeCommand("vscode.open", vscode.Uri.parse(pr.url));
+        },
+    );
+    context.subscriptions.push(disposable);
+
+    if (statusBarItems) {
+        statusBarItems[prId] = statusBarItem;
+    }
+
+    return statusBarItem;
 };
 
 /**
@@ -98,44 +118,34 @@ const renderPullRequestItem = (
     colorConfig: ColorConfig,
 ) => {
     const prId = `${pr.repository.name}${pr.number}`;
+    const statusBarItem = statusBarItems![prId] || createPRStatusBarItem(context, prId, pr);
 
-    if (!statusBarItems![prId]) {
-        const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-        context.subscriptions.push(statusBarItem);
+    console.log(`All PR properties for ${prId}: ${JSON.stringify(pr)}`);
 
-        const disposable = vscode.commands.registerCommand(
-            `mitchells-monitor.openPullRequest.${prId}`,
-            () => {
-                vscode.commands.executeCommand("vscode.open", vscode.Uri.parse(pr.url));
-            },
-        );
-        context.subscriptions.push(disposable);
+    // const { reviewsPassing, hasComments, hasPendingChangeRequests, isApproved } = getReviewState(
+    //     pr.reviews,
+    // );
+    // const mergeableState = getMergeableState(pr, reviewsPassing);
+    // const displayText = generateDisplayText(pr, titleRegex);
+    // const closed = mergeableState === "CLOSED";
+    // const itemsToDisplayAsText = [
+    //     getPullRequestStateIcon(pr.state),
+    //     displayText,
+    //     !pr.merged && !closed && getCommitIcon(pr.commits.nodes[0].commit.status),
+    //     !pr.merged && !closed && getMergeableIcon(pr.mergeable),
+    //     hasComments && "$(comment)",
+    //     hasPendingChangeRequests && "$(thumbsdown)",
+    //     isApproved && "$(thumbsup)",
+    // ];
 
-        if (statusBarItems) {
-            statusBarItems[prId] = statusBarItem;
-        }
-    }
-
-    const { reviewsPassing, hasComments, hasPendingChangeRequests, isApproved } = getReviewState(
-        pr.reviews,
-    );
-    const mergeableState = getMergeableState(pr, reviewsPassing);
-    const closed = mergeableState === "CLOSED";
-
-    const statusBarItem = statusBarItems![prId];
+    const pullRequestStatus = getPullRequestStatus(pr);
+    const pullRequestStatusIcon = getPullRequestStatusIcon(pullRequestStatus);
     const displayText = generateDisplayText(pr, titleRegex);
-    const itemsToDisplayAsText = [
-        getPullRequestStateIcon(pr.state),
-        displayText,
-        !pr.merged && !closed && getCommitIcon(pr.commits.nodes[0].commit.status),
-        !pr.merged && !closed && getMergeableIcon(pr.mergeable),
-        hasComments && "$(comment)",
-        hasPendingChangeRequests && "$(thumbsdown)",
-        isApproved && "$(thumbsup)",
-    ];
+
+    const itemsToDisplayAsText = [pullRequestStatusIcon, displayText];
 
     statusBarItem.text = itemsToDisplayAsText.filter((item) => item).join(" ");
-    statusBarItem.color = getColor(mergeableState, colorConfig);
+    statusBarItem.color = getPullRequestColour(pullRequestStatus, colorConfig);
     statusBarItem.command = `mitchells-monitor.openPullRequest.${prId}`;
     statusBarItem.tooltip = pr.title;
     statusBarItem.show();
@@ -145,8 +155,6 @@ const fetchAndRenderPullRequests = async (
     context: vscode.ExtensionContext,
     config: vscode.WorkspaceConfiguration,
 ): Promise<void> => {
-    const showMerged = config.get<boolean>("showMerged", false);
-    const showClosed = config.get<boolean>("showClosed", false);
     const count = config.get<number>("count", 6);
     const titleRegex = config.get<string | null>("titleRegex", null);
     const colorConfig = config.get<ColorConfig>("colors", {});
@@ -182,8 +190,8 @@ const fetchAndRenderPullRequests = async (
     let pullRequests: PullRequest[] = [];
     const fetchedPullRequests = await fetchPullRequests({
         token,
-        showMerged,
-        showClosed,
+        showMerged: false, // for now, might bring this feature back later
+        showClosed: false, // for now, might bring this feature back later
         count,
         url,
         allowUnsafeSSL,
@@ -207,7 +215,7 @@ const fetchAndRenderPullRequests = async (
         }
     } else {
         refreshButton.command = "mitchells-monitor.refresh";
-        refreshButton.text = "$(sync)";
+        refreshButton.text = "$(mitchells-monitor-sync-pull-requests)";
         refreshButton.tooltip = "Refresh pull requests";
 
         const allPRs = fetchedPullRequests.data || [];

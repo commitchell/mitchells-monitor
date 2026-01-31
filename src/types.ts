@@ -71,11 +71,25 @@ export interface ColorConfig {
     merged?: string;
     mergeable?: string;
     closed?: string;
-    failure?: string;
-    default?: string;
+    unknown?: string;
+    changes_requested?: string;
+    has_conflicts?: string;
+    merge_commit_issues?: string;
+    checks_failing?: string;
+    reviews_not_satisfied?: string;
+    checks_pending?: string;
 }
 
-export type MergeableState = "MERGED" | "CLOSED" | "MERGEABLE" | "FAILURE" | "OPEN";
+export type PullRequestBlockingReason =
+    | "HAS_CONFLICTS"
+    | "REVIEWS_NOT_SATISFIED"
+    | "CHANGES_REQUESTED"
+    | "CHECKS_PENDING"
+    | "CHECKS_FAILING"
+    | "MERGE_COMMIT_ISSUES"
+    | "UNKNOWN";
+
+export type PullRequestStatus = "MERGEABLE" | "CLOSED" | "MERGED" | PullRequestBlockingReason[];
 
 export interface CurrentRepository {
     nameWithOwner: string;

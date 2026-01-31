@@ -22,6 +22,15 @@
     ],
     "main": "./dist/extension.js",
     "contributes": {
+        "icons": {
+            "mitchells-monitor-sync-pull-requests": {
+                "description": "Sync pull requests icon",
+                "default": {
+                    "fontPath": "./dist/media/mitchells-monitor-sync-pull-requests.woff",
+                    "fontCharacter": "\\EA01"
+                }
+            }
+        },
         "commands": [
             {
                 "command": "mitchells-monitor.start",
@@ -50,16 +59,6 @@
                         "type": "number",
                         "default": 300
                     },
-                    "mitchells-monitor.showMerged": {
-                        "description": "Show merged pull requests",
-                        "type": "boolean",
-                        "default": false
-                    },
-                    "mitchells-monitor.showClosed": {
-                        "description": "Show closed pull requests",
-                        "type": "boolean",
-                        "default": false
-                    },
                     "mitchells-monitor.autostart": {
                         "description": "Automatically start the extension on startup",
                         "type": "boolean",
@@ -86,29 +85,49 @@
                         "default": "\\b([A-Z][A-Z0-9]+-\\d+)\\b"
                     },
                     "mitchells-monitor.colors": {
-                        "description": "Custom colors for pull request states. Specify any of: merged, mergeable, closed, failure, default. Example: { \"merged\": \"#be9af0\", \"mergeable\": \"#80d394\" }",
+                        "description": "Custom colours for pull request states. Specify any of: merged, mergeable, closed, failure, default. Example: { \"merged\": \"#be9af0\", \"mergeable\": \"#80d394\" }",
                         "type": "object",
                         "default": {},
                         "properties": {
                             "merged": {
                                 "type": "string",
-                                "description": "Color for merged pull requests"
+                                "description": "Colour for merged pull requests"
                             },
                             "mergeable": {
                                 "type": "string",
-                                "description": "Color for mergeable pull requests"
+                                "description": "Colour for mergeable pull requests"
                             },
                             "closed": {
                                 "type": "string",
-                                "description": "Color for closed pull requests"
+                                "description": "Colour for closed pull requests"
                             },
-                            "failure": {
+                            "unknown": {
                                 "type": "string",
-                                "description": "Color for failed pull requests"
+                                "description": "Colour for pull requests with unknown status"
                             },
-                            "default": {
+                            "changes_requested": {
                                 "type": "string",
-                                "description": "Default color for pull requests in other states"
+                                "description": "Colour for pull requests with changes requested"
+                            },
+                            "has_conflicts": {
+                                "type": "string",
+                                "description": "Colour for pull requests with conflicts"
+                            },
+                            "merge_commit_issues": {
+                                "type": "string",
+                                "description": "Colour for pull requests with merge commit issues"
+                            },
+                            "checks_failing": {
+                                "type": "string",
+                                "description": "Colour for pull requests with failing checks"
+                            },
+                            "reviews_not_satisfied": {
+                                "type": "string",
+                                "description": "Colour for pull requests with unsatisfied reviews"
+                            },
+                            "checks_pending": {
+                                "type": "string",
+                                "description": "Colour for pull requests with pending checks"
                             }
                         }
                     }
