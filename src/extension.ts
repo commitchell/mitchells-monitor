@@ -160,7 +160,9 @@ const getPullRequests = async (
 
     const overrideRefreshInterval = await fetchAndRenderPullRequests(config).catch((e) => {
         console.error(e);
-        vscode.window.showErrorMessage("Mitchell's Monitor error rendering");
+        vscode.window.showErrorMessage(
+            `Mitchell's Monitor - An error has occurred while fetching pull requests: ${e.message}`,
+        );
         return undefined;
     });
 
@@ -215,7 +217,7 @@ export const activate = (context: vscode.ExtensionContext): void => {
                 const { silent } = options;
                 getPullRequests(context);
                 if (!silent) {
-                    vscode.window.showInformationMessage("Mitchell's Monitor started!");
+                    vscode.window.showInformationMessage("Mitchell's Monitor has been started!");
                 }
             },
         ),
@@ -226,32 +228,39 @@ export const activate = (context: vscode.ExtensionContext): void => {
             if (timer) {
                 clearTimeout(timer);
             }
-            vscode.window.showInformationMessage("Mitchell's Monitor stopped!");
+            vscode.window.showInformationMessage("Mitchell's Monitor has been stopped!");
         }),
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand("mitchells-monitor.refresh", () => {
             getPullRequests(context);
-            vscode.window.showInformationMessage("Mitchell's Monitor refreshing");
+            vscode.window.showInformationMessage(
+                "Mitchell's Monitor - Refreshing pull requests...",
+            );
         }),
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand("mitchells-monitor.refresh.showError", () => {
             getPullRequests(context, true);
-            vscode.window.showInformationMessage("Mitchell's Monitor refreshing");
+            vscode.window.showInformationMessage(
+                "Mitchell's Monitor - Attempting to connect to remote...",
+            );
         }),
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand("mitchells-monitor.setMode", async () => {
+            const currentMode = context.globalState.get<Mode>("mode", MODES.VIEWER);
+
             const selectedMode = await vscode.window.showQuickPick(
                 [MODES.REPOSITORY, MODES.VIEWER],
                 {
-                    placeHolder: "Please select the mode",
+                    placeHolder: `Current mode: ${currentMode}`,
                 },
             );
+
             if (selectedMode && context.globalState.get("mode") !== selectedMode) {
                 if (
                     selectedMode === MODES.REPOSITORY &&
@@ -275,16 +284,20 @@ export const activate = (context: vscode.ExtensionContext): void => {
                 context.globalState.get<string>("token"),
                 { url, allowUnsafeSSL },
             );
+
             if (!repositories) {
                 return;
             }
+
             const repositoryNames = repositories.map(
                 (repository) => repository.nameWithOwner || "",
             );
+
             const selectedRepository = await vscode.window.showQuickPick(
                 repositoryNames.filter((name) => name),
-                { placeHolder: "Please select the repository" },
+                { placeHolder: "Choose the repository you would like to monitor" },
             );
+
             setRepository(context, selectedRepository);
         }),
     );
@@ -292,7 +305,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     context.subscriptions.push(
         vscode.commands.registerCommand("mitchells-monitor.enterRepositoryName", async () => {
             const selectedRepository = await vscode.window.showInputBox({
-                placeHolder: "Please enter the full repository name, ie: your-team/awesome-project",
+                placeHolder:
+                    "Please enter the name of your repository e.g. kieran/lots-of-terraform",
             });
             setRepository(context, selectedRepository);
         }),
@@ -306,7 +320,9 @@ export const activate = (context: vscode.ExtensionContext): void => {
             if (token) {
                 context.globalState.update("token", token);
                 getPullRequests(context);
-                vscode.window.showInformationMessage("Token saved.");
+                vscode.window.showInformationMessage("Token successfully saved.");
+            } else {
+                vscode.window.showWarningMessage("A token was not provided!");
             }
         }),
     );

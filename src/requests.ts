@@ -49,7 +49,7 @@ const execQuery = async <T>(
 ): Promise<ApiResponse<T>> => {
     if (!graphqlEndpoint.startsWith("https://") && showError) {
         vscode.window.showErrorMessage(
-            "Mitchell's Monitor - Invalid GitHub Enterprise URL. It must start with https://",
+            "Mitchell's Monitor - Invalid GitHub Enterprise URL; make sure it starts with https://",
         );
         return { status: "error" };
     }
@@ -59,7 +59,9 @@ const execQuery = async <T>(
     }
 
     if (!token) {
-        vscode.window.showWarningMessage("Mitchell's Monitor - Token is needed!");
+        vscode.window.showWarningMessage(
+            "Mitchell's Monitor - Please enter a token to begin monitoring!",
+        );
         return { status: "error" };
     }
 
@@ -97,7 +99,7 @@ const execQuery = async <T>(
 
         if (showError || errorCount === 2) {
             vscode.window.showErrorMessage(
-                "Mitchell's Monitor - There was an error fetching the data from GitHub",
+                "Mitchell's Monitor - There was an error fetching the data. Please check your network connection and settings.",
             );
         }
 
@@ -118,7 +120,9 @@ export const loadPullRequests = async (
         .replace("@count", String(count));
 
     if (mode === "repository" && !repository) {
-        vscode.window.showWarningMessage("Mitchell's Monitor - Need a repository to watch!");
+        vscode.window.showWarningMessage(
+            "Mitchell's Monitor - You are in repository mode. Select a repository to start monitoring!",
+        );
         return { status: "error" };
     }
 
