@@ -3,7 +3,7 @@
     "displayName": "Mitchell's Monitor",
     "description": "Monitors the status of GitHub pull requests. Checks for conflicts, status reports, reviews and whether the branch is up to date. Modern fork of 'Pull Request Monitor' by Erich Behrens.",
     "icon": "icon.png",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "publisher": "commitchell",
     "author": "Mitchell Simpson <hello@commitchell.com>",
     "license": "MIT",
@@ -12,20 +12,15 @@
     },
     "homepage": "https://github.com/commitchell/mitchells-monitor#readme",
     "engines": {
-        "vscode": "^1.18.0"
+        "vscode": "^1.85.0"
     },
     "categories": [
         "Other"
     ],
     "activationEvents": [
-        "*",
-        "onCommand:mitchells-monitor.setToken",
-        "onCommand:mitchells-monitor.start",
-        "onCommand:mitchells-monitor.setMode",
-        "onCommand:mitchells-monitor.selectRepository",
-        "onCommand:mitchells-monitor.enterRepositoryName"
+        "onStartupFinished"
     ],
-    "main": "./src/extension",
+    "main": "./dist/extension.js",
     "contributes": {
         "commands": [
             {
@@ -59,7 +54,7 @@
         ],
         "configuration": [
             {
-                "title": "GitHub Pull Request Monitor",
+                "title": "Mitchell's Monitor",
                 "type": "object",
                 "properties": {
                     "mitchells-monitor.refreshInterval": {
@@ -134,20 +129,32 @@
         ]
     },
     "scripts": {
-        "postinstall": "node ./node_modules/vscode/bin/install",
-        "test": "node ./node_modules/vscode/bin/test",
-        "lint": "eslint src test"
+        "lint": "eslint src && prettier --check .",
+        "lint:fix": "eslint src --fix && prettier --write .",
+        "typecheck": "tsc --noEmit",
+        "build": "npm run typecheck && npm run lint && node esbuild.js",
+        "build:production": "npm run typecheck && npm run lint && node esbuild.js --production",
+        "vscode:prepublish": "npm run build:production",
+        "watch": "npm-run-all -p watch:*",
+        "watch:esbuild": "node esbuild.js --watch",
+        "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:integration": "npm run build && tsc -p ./tsconfig.test.json && vscode-test"
     },
     "devDependencies": {
-        "eslint": "^5.0.1",
-        "eslint-config-airbnb": "^17.0.0",
-        "eslint-config-airbnb-base": "^13.0.0",
-        "eslint-plugin-import": "^2.13.0"
-    },
-    "dependencies": {
-        "https": "^1.0.0",
-        "isomorphic-fetch": "^2.2.1",
-        "vscode": "^1.1.18"
+        "@types/node": "^20.11.0",
+        "@types/vscode": "^1.85.0",
+        "@typescript-eslint/eslint-plugin": "^6.19.0",
+        "@typescript-eslint/parser": "^6.19.0",
+        "@vscode/test-cli": "^0.0.4",
+        "@vscode/test-electron": "^2.3.8",
+        "esbuild": "^0.20.0",
+        "eslint": "^8.56.0",
+        "npm-run-all": "^4.1.5",
+        "prettier": "^3.2.0",
+        "typescript": "^5.3.3",
+        "vitest": "^2.0.0"
     },
     "repository": {
         "type": "git",

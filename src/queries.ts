@@ -1,4 +1,4 @@
-exports.viewer = `query {
+export const viewer = `query {
   viewer {
     login
       pullRequests(last: @count @states) {
@@ -45,7 +45,7 @@ exports.viewer = `query {
   }
 }`;
 
-exports.repository = `{
+export const repository = `{
   repository(owner: "@owner" name: "@name") {
     pullRequests(last: @count @states) {
       nodes {
@@ -91,7 +91,7 @@ exports.repository = `{
   }
 }`;
 
-exports.repositories = `query {
+export const repositories = `query {
   viewer {
     login
     repositories(first: 100) {

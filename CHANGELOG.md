@@ -45,7 +45,7 @@
 
 ## v1.2.0
 
-- Changed name to *GitHub Pull Request Monitor*
+- Changed name to _GitHub Pull Request Monitor_
 - Use more distinguishable icons for failing tests and conflicts
 - Show icon for comments
 - Improve showing icons for `approved` and `change requested`
