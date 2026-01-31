@@ -12,24 +12,17 @@ import type {
     ViewerPullRequestsData,
 } from "./types";
 
-let errorCount = 0;
-
 const execQuery = async <T>(
     token: string,
     query: string,
-    showError: boolean,
     graphqlEndpoint: string,
     allowUnsafeSSL = false,
 ): Promise<ApiResponse<T>> => {
-    if (!graphqlEndpoint.startsWith("https://") && showError) {
+    if (!graphqlEndpoint.startsWith("https://")) {
         vscode.window.showErrorMessage(
             "Mitchell's Monitor - Invalid GitHub Enterprise URL; make sure it starts with https://",
         );
         return { status: "error" };
-    }
-
-    if (showError) {
-        errorCount = 0;
     }
 
     try {
@@ -47,38 +40,22 @@ const execQuery = async <T>(
 
         if (response.status === 200) {
             const result = (await response.json()) as GraphQLResponse<T>;
+
             return { status: "ok", data: result.data };
+        } else {
+            return { status: "error", code: response.status };
         }
-
-        if (response.status === 401 || response.status === 403) {
-            vscode.window.showErrorMessage("Mitchell's Monitor - Token not authorized!");
-            return { status: "error", code: 401 };
-        }
-        vscode.window.showErrorMessage(`Mitchell's Monitor - http error ${response.status}`);
-
-        return { status: "error", code: response.status };
     } catch (e) {
         console.error(e);
-
-        if (!showError) {
-            errorCount += 1;
-        }
-
-        if (showError || errorCount === 2) {
-            vscode.window.showErrorMessage(
-                "Mitchell's Monitor - There was an error fetching the data. Please check your network connection and settings.",
-            );
-        }
 
         return { status: "error" };
     }
 };
 
-export const loadPullRequests = async ({
+export const fetchPullRequests = async ({
     token,
     showMerged,
     showClosed,
-    showError,
     count,
     url,
     allowUnsafeSSL,
@@ -96,7 +73,6 @@ export const loadPullRequests = async ({
     const { status, code, data } = await execQuery<PullRequestData>(
         token,
         query,
-        showError,
         url,
         allowUnsafeSSL,
     );

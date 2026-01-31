@@ -9,15 +9,32 @@ import {
     getReviewState,
     getEndpointUrl,
     parseGitHubRepoFromRemoteUrl,
+    generateDisplayText,
 } from "./utils";
-import { loadPullRequests } from "./requests";
+import { fetchPullRequests } from "./requests";
 import type { ColorConfig, CurrentRepository, PullRequest, StatusBarItems } from "./types";
 
 let statusBarItems: StatusBarItems | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
-let pullRequests: PullRequest[] = [];
 let refreshButton: vscode.StatusBarItem;
 let noResultsLabel: vscode.StatusBarItem;
+
+const createRefreshStatusBarItem = (context: vscode.ExtensionContext) => {
+    refreshButton = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+    refreshButton.command = "mitchells-monitor.refresh";
+    refreshButton.text = "$(sync)";
+    refreshButton.tooltip = "Refresh pull requests";
+    refreshButton.show();
+    context.subscriptions.push(refreshButton);
+};
+
+const createNoResultsStatusBarItem = (context: vscode.ExtensionContext): void => {
+    noResultsLabel = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+    noResultsLabel.command = "mitchells-monitor.refresh";
+    noResultsLabel.text = "No PRs";
+    noResultsLabel.tooltip = "Refresh pull requests";
+    context.subscriptions.push(noResultsLabel);
+};
 
 /**
  * Detect GitHub repositories from all workspace folders by reading git remotes.
@@ -29,31 +46,38 @@ const detectWorkspaceRepositories = async (): Promise<CurrentRepository[]> => {
         return [];
     }
 
-    const detectRepoInFolder = (folderPath: string): Promise<CurrentRepository | undefined> => {
-        return new Promise((resolve) => {
-            childProcess.exec("git remote get-url origin", { cwd: folderPath }, (error, stdout) => {
-                if (error) {
-                    resolve(undefined);
-                    return;
-                }
+    const repoPromises = workspaceFolders.map(
+        (folder) =>
+            new Promise<CurrentRepository | undefined>((resolve) => {
+                childProcess.exec(
+                    "git remote get-url origin",
+                    { cwd: folder.uri.fsPath },
+                    (error, stdout) => {
+                        if (error) {
+                            console.error(
+                                `Error detecting git remote for folder ${folder.name}:`,
+                                error,
+                            );
+                            resolve(undefined);
+                            return;
+                        }
 
-                const remoteUrl = stdout.trim();
-                const repoInfo = parseGitHubRepoFromRemoteUrl(remoteUrl);
+                        const remoteUrl = stdout.trim();
+                        const repoInfo = parseGitHubRepoFromRemoteUrl(remoteUrl);
 
-                if (repoInfo) {
-                    resolve({
-                        nameWithOwner: `${repoInfo.owner}/${repoInfo.name}`,
-                        owner: repoInfo.owner,
-                        name: repoInfo.name,
-                    });
-                } else {
-                    resolve(undefined);
-                }
-            });
-        });
-    };
-
-    const repoPromises = workspaceFolders.map((folder) => detectRepoInFolder(folder.uri.fsPath));
+                        if (repoInfo) {
+                            resolve({
+                                nameWithOwner: `${repoInfo.owner}/${repoInfo.name}`,
+                                owner: repoInfo.owner,
+                                name: repoInfo.name,
+                            });
+                        } else {
+                            resolve(undefined);
+                        }
+                    },
+                );
+            }),
+    );
     const results = await Promise.all(repoPromises);
 
     // Filter out undefined and deduplicate by nameWithOwner
@@ -67,176 +91,170 @@ const detectWorkspaceRepositories = async (): Promise<CurrentRepository[]> => {
     });
 };
 
-const extractTitleText = (
-    prTitle: string,
-    regexPattern: string | null | undefined,
-): string | null => {
-    if (!regexPattern) {
-        return null;
-    }
-    try {
-        const regex = new RegExp(regexPattern);
-        const match = prTitle.match(regex);
-        return match && match[1] ? match[1] : null;
-    } catch (error) {
-        console.warn("Invalid regex pattern for PR title extraction:", error);
-        return null;
-    }
-};
-
-const createStatusBarItem = (context: vscode.ExtensionContext, prId: string, url: string): void => {
-    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-    context.subscriptions.push(statusBarItem);
-    const disposable = vscode.commands.registerCommand(
-        `mitchells-monitor.openPullRequest.${prId}`,
-        () => {
-            vscode.commands.executeCommand("vscode.open", vscode.Uri.parse(url));
-        },
-    );
-    context.subscriptions.push(disposable);
-    if (statusBarItems) {
-        statusBarItems[prId] = statusBarItem;
-    }
-};
-
-const getPullRequests = async (
+const renderPullRequestItem = (
+    pr: PullRequest,
     context: vscode.ExtensionContext,
-    showError = false,
+    titleRegex: string | null,
+    colorConfig: ColorConfig,
+) => {
+    const prId = `${pr.repository.name}${pr.number}`;
+
+    if (!statusBarItems![prId]) {
+        const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+        context.subscriptions.push(statusBarItem);
+
+        const disposable = vscode.commands.registerCommand(
+            `mitchells-monitor.openPullRequest.${prId}`,
+            () => {
+                vscode.commands.executeCommand("vscode.open", vscode.Uri.parse(pr.url));
+            },
+        );
+        context.subscriptions.push(disposable);
+
+        if (statusBarItems) {
+            statusBarItems[prId] = statusBarItem;
+        }
+    }
+
+    const { reviewsPassing, hasComments, hasPendingChangeRequests, isApproved } = getReviewState(
+        pr.reviews,
+    );
+    const mergeableState = getMergeableState(pr, reviewsPassing);
+    const closed = mergeableState === "CLOSED";
+
+    const statusBarItem = statusBarItems![prId];
+    const displayText = generateDisplayText(pr, titleRegex);
+    const itemsToDisplayAsText = [
+        getPullRequestStateIcon(pr.state),
+        displayText,
+        !pr.merged && !closed && getCommitIcon(pr.commits.nodes[0].commit.status),
+        !pr.merged && !closed && getMergeableIcon(pr.mergeable),
+        hasComments && "$(comment)",
+        hasPendingChangeRequests && "$(thumbsdown)",
+        isApproved && "$(thumbsup)",
+    ];
+
+    statusBarItem.text = itemsToDisplayAsText.filter((item) => item).join(" ");
+    statusBarItem.color = getColor(mergeableState, colorConfig);
+    statusBarItem.command = `mitchells-monitor.openPullRequest.${prId}`;
+    statusBarItem.tooltip = pr.title;
+    statusBarItem.show();
+};
+
+const fetchAndRenderPullRequests = async (
+    context: vscode.ExtensionContext,
+    config: vscode.WorkspaceConfiguration,
 ): Promise<void> => {
+    const showMerged = config.get<boolean>("showMerged", false);
+    const showClosed = config.get<boolean>("showClosed", false);
+    const count = config.get<number>("count", 6);
+    const titleRegex = config.get<string | null>("titleRegex", null);
+    const colorConfig = config.get<ColorConfig>("colors", {});
+    const url = getEndpointUrl(config.get<string | null>("githubEnterpriseUrl", null));
+    const allowUnsafeSSL = config.get<boolean>("allowUnsafeSSL", false);
+    const token = context.globalState.get<string>("token");
+
+    if (!token) {
+        vscode.window.showWarningMessage(
+            "Mitchell's Monitor - Please enter a token to begin monitoring!",
+        );
+        refreshButton.command = "mitchells-monitor.setToken";
+        refreshButton.text = "$(key)";
+        refreshButton.tooltip = "Set token";
+        return;
+    }
+
+    const workspaceRepos = await detectWorkspaceRepositories();
+
+    let repository: CurrentRepository | undefined;
+    let workspaceRepoNames: Set<string> | undefined;
+    if (workspaceRepos.length === 1) {
+        // Use single detected repository for fetching PRs
+        repository = workspaceRepos[0];
+    } else if (workspaceRepos.length > 1) {
+        // Multiple repositories detected - use names for filtering later
+        workspaceRepoNames = new Set(workspaceRepos.map((r) => r.nameWithOwner));
+    } else {
+        // No repositories detected, show all PRs
+        repository = undefined;
+    }
+
+    let pullRequests: PullRequest[] = [];
+    const fetchedPullRequests = await fetchPullRequests({
+        token,
+        showMerged,
+        showClosed,
+        count,
+        url,
+        allowUnsafeSSL,
+        repository,
+    });
+
+    if (fetchedPullRequests.status === "error") {
+        if (fetchedPullRequests.code === 401 || fetchedPullRequests.code === 403) {
+            vscode.window.showErrorMessage("Mitchell's Monitor - Token not authorized!");
+            refreshButton.command = "mitchells-monitor.setToken";
+            refreshButton.text = "$(key)";
+            refreshButton.tooltip = "Set token";
+            return undefined;
+        } else {
+            vscode.window.showErrorMessage(
+                `Mitchell's Monitor - There was an unknown error fetching the data. Check the console for details.`,
+            );
+            refreshButton.command = "mitchells-monitor.refresh.showError";
+            refreshButton.text = "$(zap)";
+            refreshButton.tooltip = "Connect to remote";
+        }
+    } else {
+        refreshButton.command = "mitchells-monitor.refresh";
+        refreshButton.text = "$(sync)";
+        refreshButton.tooltip = "Refresh pull requests";
+
+        const allPRs = fetchedPullRequests.data || [];
+        if (workspaceRepoNames) {
+            pullRequests = allPRs
+                .filter((pr) => {
+                    const prRepoName = pr.repository.nameWithOwner || "";
+                    return workspaceRepoNames.has(prRepoName);
+                })
+                .slice(0, count);
+        } else {
+            pullRequests = allPRs;
+        }
+    }
+
+    if (pullRequests.length === 0) {
+        noResultsLabel.show();
+        return;
+    } else {
+        noResultsLabel.hide();
+    }
+
+    if (!statusBarItems) {
+        statusBarItems = {};
+    } else {
+        const prIds = pullRequests.map((pr) => `${pr.repository.name}${pr.number}`);
+        Object.keys(statusBarItems).forEach((item) => {
+            if (!prIds.includes(item)) {
+                statusBarItems![item].hide();
+            }
+        });
+    }
+
+    pullRequests.forEach((pr) => {
+        renderPullRequestItem(pr, context, titleRegex, colorConfig);
+    });
+};
+
+const getPullRequests = async (context: vscode.ExtensionContext): Promise<void> => {
     const config = vscode.workspace.getConfiguration("mitchells-monitor");
+
     if (timer) {
         clearTimeout(timer);
     }
 
-    const fetchAndRenderPullRequests = async (
-        config: vscode.WorkspaceConfiguration,
-    ): Promise<number | undefined> => {
-        const showMerged = config.get<boolean>("showMerged", false);
-        const showClosed = config.get<boolean>("showClosed", false);
-        const count = config.get<number>("count", 6);
-        const titleRegex = config.get<string | null>("titleRegex", null);
-        const colorConfig = config.get<ColorConfig>("colors", {});
-        const url = getEndpointUrl(config.get<string | null>("githubEnterpriseUrl", null));
-        const allowUnsafeSSL = config.get<boolean>("allowUnsafeSSL", false);
-        const token = context.globalState.get<string>("token");
-
-        if (!token) {
-            vscode.window.showWarningMessage(
-                "Mitchell's Monitor - Please enter a token to begin monitoring!",
-            );
-            return undefined;
-        }
-
-        // Detect workspace repositories for smart filtering
-        const workspaceRepos = await detectWorkspaceRepositories();
-        let repository: CurrentRepository | undefined;
-        let workspaceRepoNames: Set<string> | undefined;
-
-        if (workspaceRepos.length === 1) {
-            // Single repo detected - use repository mode for efficiency
-            repository = workspaceRepos[0];
-        } else if (workspaceRepos.length > 1) {
-            // Multiple repos detected - fetch all PRs and filter client-side
-            workspaceRepoNames = new Set(workspaceRepos.map((r) => r.nameWithOwner));
-        }
-        // If no repos detected, fetch all PRs (viewer mode behavior)
-
-        const updatedPullRequests = await loadPullRequests({
-            token,
-            showMerged,
-            showClosed,
-            showError,
-            count: workspaceRepoNames ? count * workspaceRepoNames.size : count,
-            url,
-            allowUnsafeSSL,
-            repository,
-        });
-
-        if (updatedPullRequests.code === 401) {
-            refreshButton.command = "mitchells-monitor.setToken";
-            refreshButton.text = "$(key)";
-            refreshButton.tooltip = "Set GitHub token";
-            return undefined;
-        }
-
-        const overrideRefreshInterval = updatedPullRequests.status === "error" ? 15 : undefined;
-
-        if (updatedPullRequests.status === "error") {
-            refreshButton.command = "mitchells-monitor.refresh.showError";
-            refreshButton.text = "$(zap)";
-            refreshButton.tooltip = "Connect";
-        } else {
-            refreshButton.command = "mitchells-monitor.refresh";
-            refreshButton.text = "$(sync)";
-            refreshButton.tooltip = "Refresh pull requests";
-
-            // Filter PRs if we detected multiple workspace repos
-            const allPRs = updatedPullRequests.data || [];
-
-            if (workspaceRepoNames) {
-                pullRequests = allPRs
-                    .filter((pr) => {
-                        const prRepoName = pr.repository.nameWithOwner || "";
-                        return workspaceRepoNames.has(prRepoName);
-                    })
-                    .slice(0, count);
-            } else {
-                pullRequests = allPRs;
-            }
-        }
-
-        if (!statusBarItems) {
-            statusBarItems = {};
-        } else {
-            const prIds = pullRequests.map((pr) => `${pr.repository.name}${pr.number}`);
-            Object.keys(statusBarItems).forEach((item) => {
-                if (!prIds.includes(item)) {
-                    statusBarItems![item].hide();
-                }
-            });
-        }
-
-        if (pullRequests.length === 0) {
-            noResultsLabel.show();
-        } else {
-            noResultsLabel.hide();
-        }
-
-        pullRequests.forEach((pr) => {
-            const prId = `${pr.repository.name}${pr.number}`;
-
-            if (!statusBarItems![prId]) {
-                createStatusBarItem(context, prId, pr.url);
-            }
-
-            const { reviewsPassing, hasComments, hasPendingChangeRequests, isApproved } =
-                getReviewState(pr.reviews);
-            const mergeableState = getMergeableState(pr, reviewsPassing);
-            const closed = mergeableState === "CLOSED";
-
-            const statusBarItem = statusBarItems![prId];
-            const displayText = extractTitleText(pr.title, titleRegex) || String(pr.number);
-            const text = [
-                getPullRequestStateIcon(pr.state),
-                displayText,
-                !pr.merged && !closed && getCommitIcon(pr.commits.nodes[0].commit.status),
-                !pr.merged && !closed && getMergeableIcon(pr.mergeable),
-                hasComments && "$(comment)",
-                hasPendingChangeRequests && "$(thumbsdown)",
-                isApproved && "$(thumbsup)",
-            ];
-
-            statusBarItem.text = text.filter((item) => item).join(" ");
-            statusBarItem.color = getColor(mergeableState, colorConfig);
-            statusBarItem.command = `mitchells-monitor.openPullRequest.${prId}`;
-            statusBarItem.tooltip = pr.title;
-            statusBarItem.show();
-        });
-
-        return overrideRefreshInterval;
-    };
-
-    const overrideRefreshInterval = await fetchAndRenderPullRequests(config).catch((e) => {
+    createNoResultsStatusBarItem(context);
+    await fetchAndRenderPullRequests(context, config).catch((e) => {
         console.error(e);
         vscode.window.showErrorMessage(
             `Mitchell's Monitor - An error has occurred while fetching pull requests: ${e.message}`,
@@ -244,44 +262,40 @@ const getPullRequests = async (
         return undefined;
     });
 
-    // we store the interval in seconds and prevent the users to set a value lower than 15s
-    const userRefreshInterval =
-        overrideRefreshInterval || Number.parseInt(String(config.get("refreshInterval")), 10);
-    const refreshInterval = userRefreshInterval >= 15 ? userRefreshInterval : 60;
-    if (!refreshInterval) {
-        return;
+    const userRefreshInterval = Number.parseInt(String(config.get("refreshInterval")), 10);
+    let refreshInterval: number;
+    if (userRefreshInterval >= 15) {
+        refreshInterval = userRefreshInterval;
+    } else {
+        refreshInterval = 60;
     }
 
     timer = setTimeout(() => getPullRequests(context), refreshInterval * 1000);
 };
 
 export const activate = (context: vscode.ExtensionContext): void => {
-    noResultsLabel = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-    noResultsLabel.command = "mitchells-monitor.refresh";
-    noResultsLabel.text = "No PRs";
-    noResultsLabel.tooltip = "Refresh pull requests";
-    context.subscriptions.push(noResultsLabel);
+    // Display refresh button in status bar
+    createRefreshStatusBarItem(context);
 
-    refreshButton = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-    refreshButton.command = "mitchells-monitor.refresh";
-    refreshButton.text = "$(sync)";
-    refreshButton.tooltip = "Refresh pull requests";
-    refreshButton.show();
-    context.subscriptions.push(refreshButton);
-
-    // Auto-refresh when workspace folders change
+    // Watch for workspace folders changing and refresh PRs when that happens
     context.subscriptions.push(
         vscode.workspace.onDidChangeWorkspaceFolders(() => {
-            getPullRequests(context);
+            // Only refresh if the extension has been started (timer exists)
+            if (timer) {
+                getPullRequests(context);
+            }
         }),
     );
 
+    // Register start command
     context.subscriptions.push(
         vscode.commands.registerCommand(
             "mitchells-monitor.start",
             (options: { silent?: boolean } = {}) => {
                 const { silent } = options;
+
                 getPullRequests(context);
+
                 if (!silent) {
                     vscode.window.showInformationMessage("Mitchell's Monitor has been started!");
                 }
@@ -289,41 +303,51 @@ export const activate = (context: vscode.ExtensionContext): void => {
         ),
     );
 
+    // Register stop command
     context.subscriptions.push(
         vscode.commands.registerCommand("mitchells-monitor.stop", () => {
             if (timer) {
                 clearTimeout(timer);
             }
+
             vscode.window.showInformationMessage("Mitchell's Monitor has been stopped!");
         }),
     );
 
+    // Register refresh command
     context.subscriptions.push(
         vscode.commands.registerCommand("mitchells-monitor.refresh", () => {
             getPullRequests(context);
+
             vscode.window.showInformationMessage(
                 "Mitchell's Monitor - Refreshing pull requests...",
             );
         }),
     );
 
+    // Register refresh with error display command
     context.subscriptions.push(
         vscode.commands.registerCommand("mitchells-monitor.refresh.showError", () => {
-            getPullRequests(context, true);
+            getPullRequests(context);
+
             vscode.window.showInformationMessage(
                 "Mitchell's Monitor - Attempting to connect to remote...",
             );
         }),
     );
 
+    // Register set token command
     context.subscriptions.push(
         vscode.commands.registerCommand("mitchells-monitor.setToken", async () => {
             const token = await vscode.window.showInputBox({
                 placeHolder: "Please enter your GitHub token",
             });
+
             if (token) {
                 context.globalState.update("token", token);
+
                 getPullRequests(context);
+
                 vscode.window.showInformationMessage("Token successfully saved.");
             } else {
                 vscode.window.showWarningMessage("A token was not provided!");
@@ -331,10 +355,10 @@ export const activate = (context: vscode.ExtensionContext): void => {
         }),
     );
 
-    if (
-        vscode.workspace.getConfiguration("mitchells-monitor").get("autostart") &&
-        context.globalState.get("token")
-    ) {
+    // Auto-start if configured
+    const autostart = vscode.workspace.getConfiguration("mitchells-monitor").get("autostart");
+    const token = context.globalState.get("token");
+    if (autostart && token) {
         vscode.commands.executeCommand("mitchells-monitor.start", { silent: true });
     }
 };

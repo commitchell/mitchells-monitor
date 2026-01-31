@@ -107,7 +107,6 @@ export interface LoadPullRequestsOptions {
     token: string;
     showMerged: boolean;
     showClosed: boolean;
-    showError: boolean;
     count: number;
     url: string;
     allowUnsafeSSL: boolean;
