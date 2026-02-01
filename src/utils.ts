@@ -97,14 +97,14 @@ export const parseGitHubRepoFromRemoteUrl = (
 export const generateDisplayText = (
     pr: PullRequest,
     regexPattern: string | null | undefined,
-): string | null => {
+): string => {
     if (!regexPattern) {
         return String(pr.number);
     } else {
         try {
             const regex = new RegExp(regexPattern);
             const match = pr.title.match(regex);
-            return match && match[1] ? match[1] : null;
+            return match && match[1] ? match[1] : String(pr.number);
         } catch (error) {
             console.warn("Invalid regex pattern for PR title extraction:", error);
             return String(pr.number);

@@ -11,6 +11,10 @@
         "url": "https://github.com/commitchell/mitchells-monitor/issues"
     },
     "homepage": "https://github.com/commitchell/mitchells-monitor#readme",
+    "galleryBanner": {
+        "color": "#0E0F0F",
+        "theme": "dark"
+    },
     "engines": {
         "vscode": "^1.85.0"
     },
@@ -83,6 +87,16 @@
                         "description": "Regex pattern to extract text from PR titles for display (e.g., '\\b([A-Z][A-Z0-9]+-\\d+)\\b' to extract JIRA ticket IDs). If not set or no match, PR number will be used.",
                         "type": "string",
                         "default": "\\b([A-Z][A-Z0-9]+-\\d+)\\b"
+                    },
+                    "mitchells-monitor.showMerged": {
+                        "description": "Show merged pull requests in addition to open ones",
+                        "type": "boolean",
+                        "default": false
+                    },
+                    "mitchells-monitor.showClosed": {
+                        "description": "Show closed pull requests in addition to open ones",
+                        "type": "boolean",
+                        "default": false
                     },
                     "mitchells-monitor.colors": {
                         "description": "Custom colours for pull request states. Specify any of: merged, mergeable, closed, failure, default. Example: { \"merged\": \"#be9af0\", \"mergeable\": \"#80d394\" }",

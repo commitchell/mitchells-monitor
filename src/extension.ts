@@ -129,7 +129,7 @@ const renderPullRequestItem = (
     statusBarItem.text = itemsToDisplayAsText.filter((item) => item).join(" ");
     statusBarItem.color = getPullRequestColour(pullRequestStatus, colorConfig);
     statusBarItem.command = `mitchells-monitor.openPullRequest.${prId}`;
-    statusBarItem.tooltip = pr.title;
+    statusBarItem.tooltip = `${pr.repository.name}\n${pr.title}`;
     statusBarItem.show();
 };
 
@@ -142,6 +142,8 @@ const fetchAndRenderPullRequests = async (
     const colorConfig = config.get<ColorConfig>("colors", {});
     const url = getEndpointUrl(config.get<string | null>("githubEnterpriseUrl", null));
     const allowUnsafeSSL = config.get<boolean>("allowUnsafeSSL", false);
+    const showMerged = config.get<boolean>("showMerged", false);
+    const showClosed = config.get<boolean>("showClosed", false);
     const token = context.globalState.get<string>("token");
 
     if (!token) {
@@ -164,8 +166,8 @@ const fetchAndRenderPullRequests = async (
     let pullRequests: PullRequest[] = [];
     const fetchedPullRequests = await fetchPullRequests({
         token,
-        showMerged: false, // for now, might bring this feature back later if we can prioritise open PRs
-        showClosed: false, // for now, might bring this feature back later if we can prioritise open PRs
+        showMerged,
+        showClosed,
         count,
         url,
         allowUnsafeSSL,
@@ -192,15 +194,42 @@ const fetchAndRenderPullRequests = async (
         refreshButton.tooltip = "Refresh pull requests";
 
         const allPRs = fetchedPullRequests.data || [];
+
+        // Sort PRs to prioritize open > merged > closed
+        const sortedPRs = allPRs.sort((a, b) => {
+            const getStatePriority = (state: string) => {
+                switch (state) {
+                    case "OPEN":
+                        return 1;
+                    case "MERGED":
+                        return 2;
+                    case "CLOSED":
+                        return 3;
+                    default:
+                        return 4;
+                }
+            };
+
+            const priorityA = getStatePriority(a.state);
+            const priorityB = getStatePriority(b.state);
+
+            if (priorityA !== priorityB) {
+                return priorityA - priorityB;
+            }
+
+            // If same priority, sort by PR number descending (newest first)
+            return b.number - a.number;
+        });
+
         if (workspaceRepoNames) {
-            pullRequests = allPRs
+            pullRequests = sortedPRs
                 .filter((pr) => {
                     const prRepoName = pr.repository.nameWithOwner || "";
                     return workspaceRepoNames.has(prRepoName);
                 })
                 .slice(0, count);
         } else {
-            pullRequests = allPRs;
+            pullRequests = sortedPRs;
         }
     }
 
