@@ -243,7 +243,6 @@ const getPullRequests = async (context: vscode.ExtensionContext): Promise<void> 
         clearTimeout(timer);
     }
 
-    createNoResultsStatusBarItem(context);
     await fetchAndRenderPullRequests(context, config).catch((e) => {
         console.error(e);
         vscode.window.showErrorMessage(
@@ -264,8 +263,8 @@ const getPullRequests = async (context: vscode.ExtensionContext): Promise<void> 
 };
 
 export const activate = (context: vscode.ExtensionContext): void => {
-    // Display refresh button in status bar
     createRefreshStatusBarItem(context);
+    createNoResultsStatusBarItem(context);
 
     // Watch for workspace folders changing and refresh PRs when that happens
     context.subscriptions.push(
