@@ -52,19 +52,6 @@ export const createViewerPullRequestsResponse = (pullRequests: PullRequest[]) =>
 });
 
 /**
- * Creates a successful repository pull requests response
- */
-export const createRepositoryPullRequestsResponse = (pullRequests: PullRequest[]) => ({
-    data: {
-        repository: {
-            pullRequests: {
-                nodes: pullRequests,
-            },
-        },
-    },
-});
-
-/**
  * Creates a successful repositories list response
  */
 export const createRepositoriesResponse = (repositories: Repository[]) => ({

@@ -156,17 +156,9 @@ const fetchAndRenderPullRequests = async (
 
     const workspaceRepos = await detectWorkspaceRepositories();
 
-    let repository: CurrentRepository | undefined;
     let workspaceRepoNames: Set<string> | undefined;
-    if (workspaceRepos.length === 1) {
-        // Use single detected repository for fetching PRs
-        repository = workspaceRepos[0];
-    } else if (workspaceRepos.length > 1) {
-        // Multiple repositories detected - use names for filtering later
+    if (workspaceRepos.length > 0) {
         workspaceRepoNames = new Set(workspaceRepos.map((r) => r.nameWithOwner));
-    } else {
-        // No repositories detected, show all PRs
-        repository = undefined;
     }
 
     let pullRequests: PullRequest[] = [];
@@ -177,7 +169,6 @@ const fetchAndRenderPullRequests = async (
         count,
         url,
         allowUnsafeSSL,
-        repository,
     });
 
     if (fetchedPullRequests.status === "error") {

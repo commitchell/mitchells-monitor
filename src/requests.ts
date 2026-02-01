@@ -7,8 +7,6 @@ import type {
     GraphQLResponse,
     LoadPullRequestsOptions,
     PullRequest,
-    PullRequestData,
-    RepositoryPullRequestsData,
     ViewerPullRequestsData,
 } from "./types";
 
@@ -59,28 +57,18 @@ export const fetchPullRequests = async ({
     count,
     url,
     allowUnsafeSSL,
-    repository,
 }: LoadPullRequestsOptions): Promise<ApiResponse<PullRequest[]>> => {
-    const queryTemplate = repository ? queries.repository : queries.viewer;
-
-    let query = queryTemplate
+    const query = queries.viewer
         .replace("@states", getStatesFilter(showMerged, showClosed))
         .replace("@count", String(count));
-    if (repository) {
-        query = query.replace("@owner", repository.owner).replace("@name", repository.name);
-    }
 
-    const { status, code, data } = await execQuery<PullRequestData>(
+    const { status, code, data } = await execQuery<ViewerPullRequestsData>(
         token,
         query,
         url,
         allowUnsafeSSL,
     );
 
-    const pullRequests = data
-        ? repository
-            ? (data as RepositoryPullRequestsData).repository.pullRequests.nodes
-            : (data as ViewerPullRequestsData).viewer.pullRequests.nodes
-        : undefined;
+    const pullRequests = data ? data.viewer.pullRequests.nodes : undefined;
     return { status, code, data: pullRequests };
 };

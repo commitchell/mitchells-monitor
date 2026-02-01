@@ -109,14 +109,6 @@ export interface ViewerPullRequestsData {
     };
 }
 
-export interface RepositoryPullRequestsData {
-    repository: {
-        pullRequests: {
-            nodes: PullRequest[];
-        };
-    };
-}
-
 export interface LoadPullRequestsOptions {
     token: string;
     showMerged: boolean;
@@ -124,10 +116,7 @@ export interface LoadPullRequestsOptions {
     count: number;
     url: string;
     allowUnsafeSSL: boolean;
-    repository?: CurrentRepository;
 }
-
-export type PullRequestData = ViewerPullRequestsData | RepositoryPullRequestsData;
 
 export interface ApiResponse<T> {
     status: "ok" | "error";
