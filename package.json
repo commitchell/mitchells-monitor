@@ -1,0 +1,172 @@
+{
+    "name": "mitchells-monitor",
+    "displayName": "Mitchell's Monitor",
+    "description": "Monitors the status of GitHub pull requests. Checks for conflicts, status reports, reviews and whether the branch is up to date. Modern fork of 'Pull Request Monitor' by Erich Behrens.",
+    "icon": "icon.png",
+    "version": "1.1.0",
+    "publisher": "commitchell",
+    "author": "Mitchell Simpson <hello@commitchell.com>",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/commitchell/mitchells-monitor/issues"
+    },
+    "homepage": "https://github.com/commitchell/mitchells-monitor#readme",
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "icons": {
+            "mitchells-monitor-sync-pull-requests": {
+                "description": "Sync pull requests icon",
+                "default": {
+                    "fontPath": "./dist/media/mitchells-monitor-sync-pull-requests.woff",
+                    "fontCharacter": "\\EA01"
+                }
+            }
+        },
+        "commands": [
+            {
+                "command": "mitchells-monitor.start",
+                "title": "Mitchell's Monitor: Start monitoring"
+            },
+            {
+                "command": "mitchells-monitor.stop",
+                "title": "Mitchell's Monitor: Stop monitoring"
+            },
+            {
+                "command": "mitchells-monitor.refresh",
+                "title": "Mitchell's Monitor: Refresh now"
+            },
+            {
+                "command": "mitchells-monitor.setToken",
+                "title": "Mitchell's Monitor: Set GitHub token"
+            }
+        ],
+        "configuration": [
+            {
+                "title": "Mitchell's Monitor",
+                "type": "object",
+                "properties": {
+                    "mitchells-monitor.refreshInterval": {
+                        "description": "Refresh interval in seconds (min. 15)",
+                        "type": "number",
+                        "default": 300
+                    },
+                    "mitchells-monitor.autostart": {
+                        "description": "Automatically start the extension on startup",
+                        "type": "boolean",
+                        "default": true
+                    },
+                    "mitchells-monitor.count": {
+                        "description": "Number of pull requests to show",
+                        "type": "number",
+                        "default": 6
+                    },
+                    "mitchells-monitor.githubEnterpriseUrl": {
+                        "description": "Optionally, you can provide a GitHub Enterprise URL to query (e.g., 'https://github.mycompany.com')",
+                        "type": "string",
+                        "default": null
+                    },
+                    "mitchells-monitor.allowUnsafeSSL": {
+                        "description": "Stops the extension from verifying certs (turn on if you get an error)",
+                        "type": "boolean",
+                        "default": false
+                    },
+                    "mitchells-monitor.titleRegex": {
+                        "description": "Regex pattern to extract text from PR titles for display (e.g., '\\b([A-Z][A-Z0-9]+-\\d+)\\b' to extract JIRA ticket IDs). If not set or no match, PR number will be used.",
+                        "type": "string",
+                        "default": "\\b([A-Z][A-Z0-9]+-\\d+)\\b"
+                    },
+                    "mitchells-monitor.colors": {
+                        "description": "Custom colours for pull request states. Specify any of: merged, mergeable, closed, failure, default. Example: { \"merged\": \"#be9af0\", \"mergeable\": \"#80d394\" }",
+                        "type": "object",
+                        "default": {},
+                        "properties": {
+                            "merged": {
+                                "type": "string",
+                                "description": "Colour for merged pull requests"
+                            },
+                            "mergeable": {
+                                "type": "string",
+                                "description": "Colour for mergeable pull requests"
+                            },
+                            "closed": {
+                                "type": "string",
+                                "description": "Colour for closed pull requests"
+                            },
+                            "unknown": {
+                                "type": "string",
+                                "description": "Colour for pull requests with unknown status"
+                            },
+                            "changes_requested": {
+                                "type": "string",
+                                "description": "Colour for pull requests with changes requested"
+                            },
+                            "has_conflicts": {
+                                "type": "string",
+                                "description": "Colour for pull requests with conflicts"
+                            },
+                            "merge_commit_issues": {
+                                "type": "string",
+                                "description": "Colour for pull requests with merge commit issues"
+                            },
+                            "checks_failing": {
+                                "type": "string",
+                                "description": "Colour for pull requests with failing checks"
+                            },
+                            "reviews_not_satisfied": {
+                                "type": "string",
+                                "description": "Colour for pull requests with unsatisfied reviews"
+                            },
+                            "checks_pending": {
+                                "type": "string",
+                                "description": "Colour for pull requests with pending checks"
+                            }
+                        }
+                    }
+                }
+            }
+        ]
+    },
+    "scripts": {
+        "lint": "eslint src && prettier --check .",
+        "lint:fix": "eslint src --fix && prettier --write .",
+        "typecheck": "tsc --noEmit",
+        "build": "npm run typecheck && npm run lint && node esbuild.js",
+        "build:production": "npm run typecheck && npm run lint && node esbuild.js --production",
+        "vscode:prepublish": "npm run build:production",
+        "watch": "npm-run-all -p watch:*",
+        "watch:esbuild": "node esbuild.js --watch",
+        "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:integration": "npm run build && tsc -p ./tsconfig.test.json && vscode-test",
+        "vscode:package": "npm run build:production && vsce package",
+        "vscode:publish": "vsce publish"
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.0",
+        "@types/vscode": "^1.85.0",
+        "@typescript-eslint/eslint-plugin": "^6.19.0",
+        "@typescript-eslint/parser": "^6.19.0",
+        "@vscode/test-cli": "^0.0.4",
+        "@vscode/test-electron": "^2.3.8",
+        "esbuild": "^0.20.0",
+        "eslint": "^8.56.0",
+        "npm-run-all": "^4.1.5",
+        "prettier": "^3.2.0",
+        "typescript": "^5.3.3",
+        "vitest": "^2.0.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/commitchell/mitchells-monitor.git"
+    }
+}
