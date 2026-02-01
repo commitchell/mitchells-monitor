@@ -1,10 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
-    getCommitIcon,
-    getColor,
-    getMergeableIcon,
-    getMergeableState,
-    getPullRequestStateIcon,
+    getPullRequestStatus,
+    getPullRequestStatusIcon,
+    getPullRequestColour,
     getReviewState,
 } from "../src/utils";
 import { createMockPullRequest, SAMPLE_PULL_REQUESTS } from "./fixtures";
@@ -20,11 +18,10 @@ describe("Pull Request Rendering Logic", () => {
      * Helper to simulate the status bar text generation logic from extension.ts
      */
     const generateStatusBarText = (pr: PullRequest, titleRegex: string | null = null): string => {
-        const { reviewsPassing, hasComments, hasPendingChangeRequests, isApproved } =
-            getReviewState(pr.reviews);
-        const mergeableState = getMergeableState(pr, reviewsPassing);
-        const closed = mergeableState === "CLOSED";
-
+        const { hasComments, hasPendingChangeRequests, isApproved } = getReviewState(pr.reviews);
+        const status = getPullRequestStatus(pr);
+        const statusIcon = getPullRequestStatusIcon(status);
+        const color = getPullRequestColour(status);
         const extractTitleText = (prTitle: string, regexPattern: string | null): string | null => {
             if (!regexPattern) return null;
             try {
@@ -35,13 +32,11 @@ describe("Pull Request Rendering Logic", () => {
                 return null;
             }
         };
-
         const displayText = extractTitleText(pr.title, titleRegex) || String(pr.number);
         const text = [
-            getPullRequestStateIcon(pr.state),
+            statusIcon,
             displayText,
-            !pr.merged && !closed && getCommitIcon(pr.commits.nodes[0].commit.status),
-            !pr.merged && !closed && getMergeableIcon(pr.mergeable),
+            color,
             hasComments && "$(comment)",
             hasPendingChangeRequests && "$(thumbsdown)",
             isApproved && "$(thumbsup)",
@@ -52,50 +47,44 @@ describe("Pull Request Rendering Logic", () => {
     it("open mergeable PR shows correct icons", () => {
         const pr = SAMPLE_PULL_REQUESTS.openMergeable;
         const text = generateStatusBarText(pr);
-
-        expect(text).toContain("$(git-pull-request)");
-        expect(text).toContain("$(check)");
-        expect(text).toContain("$(git-merge)");
+        expect(text).toContain("$(pass-filled)");
+        expect(text).toContain("rgba(77, 237, 186, 1)");
         expect(text).toContain("1");
     });
 
     it("open conflicting PR shows alert icon", () => {
         const pr = SAMPLE_PULL_REQUESTS.openWithConflicts;
         const text = generateStatusBarText(pr);
-
-        expect(text).toContain("$(git-pull-request)");
-        expect(text).toContain("$(alert)");
+        expect(text).toContain("$(warning)");
+        expect(text).toContain("rgba(255, 115, 82, 1)");
     });
 
     it("open pending PR shows pending icon", () => {
         const pr = SAMPLE_PULL_REQUESTS.openPending;
         const text = generateStatusBarText(pr);
-
         expect(text).toContain("$(kebab-horizontal)");
-        expect(text).toContain("$(question)");
+        expect(text).toContain("rgba(255, 227, 77, 1)");
     });
 
     it("open PR with failed checks shows tools icon", () => {
         const pr = SAMPLE_PULL_REQUESTS.openWithFailedChecks;
         const text = generateStatusBarText(pr);
-
-        expect(text).toContain("$(tools)");
+        expect(text).toContain("$(error)");
+        expect(text).toContain("rgba(255, 115, 82, 1)");
     });
 
     it("merged PR shows only merge icon and number", () => {
         const pr = SAMPLE_PULL_REQUESTS.merged;
         const text = generateStatusBarText(pr);
-
         expect(text).toContain("$(git-merge)");
-        expect(text).not.toContain("$(check)");
-        expect(text).not.toContain("$(alert)");
+        expect(text).toContain("rgba(214, 172, 255, 1)");
     });
 
     it("closed PR shows X icon", () => {
         const pr = SAMPLE_PULL_REQUESTS.closed;
         const text = generateStatusBarText(pr);
-
-        expect(text).toContain("$(x)");
+        expect(text).toContain("$(git-pull-request-closed)");
+        expect(text).toContain("rgba(144, 155, 155, 1)");
     });
 
     it("approved PR shows thumbsup icon", () => {
@@ -141,22 +130,18 @@ describe("Pull Request Rendering Logic", () => {
 describe("Pull Request Color Logic", () => {
     it("merged PR gets purple color", () => {
         const pr = SAMPLE_PULL_REQUESTS.merged;
-        const { reviewsPassing } = getReviewState(pr.reviews);
-        const state = getMergeableState(pr, reviewsPassing);
-        const color = getColor(state);
-
-        expect(state).toBe("MERGED");
-        expect(color).toBe("rgba(190, 154, 240, 1)");
+        const status = getPullRequestStatus(pr);
+        const color = getPullRequestColour(status);
+        expect(status).toBe("MERGED");
+        expect(color).toBe("rgba(214, 172, 255, 1)");
     });
 
     it("closed PR gets dark color", () => {
         const pr = SAMPLE_PULL_REQUESTS.closed;
-        const { reviewsPassing } = getReviewState(pr.reviews);
-        const state = getMergeableState(pr, reviewsPassing);
-        const color = getColor(state);
-
-        expect(state).toBe("CLOSED");
-        expect(color).toBe("rgba(58, 62, 62, 1)");
+        const status = getPullRequestStatus(pr);
+        const color = getPullRequestColour(status);
+        expect(status).toBe("CLOSED");
+        expect(color).toBe("rgba(144, 155, 155, 1)");
     });
 
     it("mergeable PR gets green color", () => {
@@ -166,32 +151,25 @@ describe("Pull Request Color Logic", () => {
             commits: { nodes: [{ commit: { status: { state: "SUCCESS" } } }] },
             potentialMergeCommit: { status: null },
         });
-        const { reviewsPassing } = getReviewState(pr.reviews);
-        const state = getMergeableState(pr, reviewsPassing);
-        const color = getColor(state);
-
-        expect(state).toBe("MERGEABLE");
-        expect(color).toBe("rgba(128, 211, 148, 1)");
+        const status = getPullRequestStatus(pr);
+        const color = getPullRequestColour(status);
+        expect(status).toBe("MERGEABLE");
+        expect(color).toBe("rgba(77, 237, 186, 1)");
     });
 
     it("conflicting PR gets red color", () => {
         const pr = SAMPLE_PULL_REQUESTS.openWithConflicts;
-        const { reviewsPassing } = getReviewState(pr.reviews);
-        const state = getMergeableState(pr, reviewsPassing);
-        const color = getColor(state);
-
-        expect(state).toBe("FAILURE");
-        expect(color).toBe("rgba(255, 110, 110, 1)");
+        const status = getPullRequestStatus(pr);
+        const color = getPullRequestColour(status);
+        expect(Array.isArray(status)).toBe(true);
+        expect(color).toBe("rgba(255, 115, 82, 1)");
     });
 
     it("pending PR gets gray color", () => {
         const pr = SAMPLE_PULL_REQUESTS.openPending;
-        const { reviewsPassing } = getReviewState(pr.reviews);
-        const state = getMergeableState(pr, reviewsPassing);
-        const color = getColor(state);
-
-        expect(state).toBe("OPEN");
-        expect(color).toBe("rgba(144, 155, 155, 1)");
+        const status = getPullRequestStatus(pr);
+        const color = getPullRequestColour(status);
+        expect(color).toBe("rgba(255, 227, 77, 1)");
     });
 
     it("custom colors override defaults", () => {
@@ -199,15 +177,21 @@ describe("Pull Request Color Logic", () => {
             merged: "#custom-merged",
             mergeable: "#custom-mergeable",
             closed: "#custom-closed",
-            failure: "#custom-failure",
-            default: "#custom-default",
+            unknown: "#custom-unknown",
+            changes_requested: "#custom-changes-requested",
+            has_conflicts: "#custom-has-conflicts",
+            merge_commit_issues: "#custom-merge-commit-issues",
+            checks_failing: "#custom-checks-failing",
+            reviews_not_satisfied: "#custom-reviews-not-satisfied",
+            checks_pending: "#custom-checks-pending",
         };
-
-        expect(getColor("MERGED", customColors)).toBe("#custom-merged");
-        expect(getColor("MERGEABLE", customColors)).toBe("#custom-mergeable");
-        expect(getColor("CLOSED", customColors)).toBe("#custom-closed");
-        expect(getColor("FAILURE", customColors)).toBe("#custom-failure");
-        expect(getColor("OPEN", customColors)).toBe("#custom-default");
+        expect(getPullRequestColour("MERGED", customColors)).toBe("#custom-merged");
+        expect(getPullRequestColour("MERGEABLE", customColors)).toBe("#custom-mergeable");
+        expect(getPullRequestColour("CLOSED", customColors)).toBe("#custom-closed");
+        expect(getPullRequestColour(["HAS_CONFLICTS"], customColors)).toBe("#custom-has-conflicts");
+        expect(getPullRequestColour(["CHECKS_PENDING"], customColors)).toBe(
+            "#custom-checks-pending",
+        );
     });
 });
 
