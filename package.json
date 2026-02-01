@@ -3,7 +3,7 @@
     "displayName": "Mitchell's Monitor",
     "description": "Monitors the status of GitHub pull requests. Checks for conflicts, status reports, reviews and whether the branch is up to date. Modern fork of 'Pull Request Monitor' by Erich Behrens.",
     "icon": "icon.png",
-    "version": "1.1.2",
+    "version": "1.2.0",
     "publisher": "commitchell",
     "author": "Mitchell Simpson <hello@commitchell.com>",
     "license": "MIT",
