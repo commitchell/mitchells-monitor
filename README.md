@@ -1,5 +1,6 @@
 ![Screenshot of mitchells-monitor in action](desc-image.png)
 Monitors the status of GitHub pull requests. Checks if a pull request is mergable, including the status of reviews, merge conflicts and checks. Initially based off of 'Pull Request Monitor' by Erich Behrens.
+Please note this extension is designed for my own use and may change / not work at any time.
 
 ## Usage
 

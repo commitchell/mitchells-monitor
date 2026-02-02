@@ -28,16 +28,19 @@ export const viewer = `query {
             commits(last: 1){
               nodes{
                 commit{
+                  committedDate
                   status{
                     state
                   }
                 }
               }
             }
+            reviewDecision
             reviews(first: 10) {
               edges {
                 node {
                   state
+                  createdAt
                   author {
                     login
                   }
@@ -84,6 +87,7 @@ export const repository = `{
             }
           }
         }
+        reviewDecision
         reviews(first: 10) {
           edges {
             node {

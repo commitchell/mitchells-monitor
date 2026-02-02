@@ -1,18 +1,24 @@
 # Change Log
 
+## v1.3.0
+
+- General bug fixes and improvements
+- Improve logic for PR status
+- Show VPN message if using GHE and can't connect to remote
+
 ## v1.2.0
 
-Add ability to see closed/merged PRs
-Add repository name to tooltip
+- Add ability to see closed/merged PRs
+- Add repository name to tooltip
 
 ## v1.1.2
 
-Fix to only pull user's pull requests
+- Fix to only pull user's pull requests
 
 ## v1.1.1
 
-Bug fixes
+- Bug fixes
 
 ## v1.1.0
 
-Initial implementation
+- Initial implementation

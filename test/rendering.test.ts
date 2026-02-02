@@ -18,7 +18,10 @@ describe("Pull Request Rendering Logic", () => {
      * Helper to simulate the status bar text generation logic from extension.ts
      */
     const generateStatusBarText = (pr: PullRequest, titleRegex: string | null = null): string => {
-        const { hasComments, hasPendingChangeRequests, isApproved } = getReviewState(pr.reviews);
+        const { hasComments, hasPendingChangeRequests, isApproved } = getReviewState(
+            pr.reviews,
+            pr.reviewDecision,
+        );
         const status = getPullRequestStatus(pr);
         const statusIcon = getPullRequestStatusIcon(status);
         const color = getPullRequestColour(status);
@@ -196,9 +199,9 @@ describe("Pull Request Color Logic", () => {
 });
 
 describe("Review State Logic", () => {
-    it("no reviews means reviews passing", () => {
-        const pr = createMockPullRequest({ reviews: { edges: [] } });
-        const state = getReviewState(pr.reviews);
+    it("no reviews means reviews passing when no review policy", () => {
+        const pr = createMockPullRequest({ reviews: { edges: [] }, reviewDecision: null });
+        const state = getReviewState(pr.reviews, pr.reviewDecision);
 
         expect(state.reviewsPassing).toBe(true);
         expect(state.hasComments).toBe(false);
@@ -208,7 +211,7 @@ describe("Review State Logic", () => {
 
     it("approved review sets isApproved", () => {
         const pr = SAMPLE_PULL_REQUESTS.withApprovedReview;
-        const state = getReviewState(pr.reviews);
+        const state = getReviewState(pr.reviews, pr.reviewDecision);
 
         expect(state.isApproved).toBe(true);
         expect(state.hasPendingChangeRequests).toBe(false);
@@ -217,33 +220,45 @@ describe("Review State Logic", () => {
 
     it("changes requested sets hasPendingChangeRequests", () => {
         const pr = SAMPLE_PULL_REQUESTS.withChangesRequested;
-        const state = getReviewState(pr.reviews);
+        const state = getReviewState(pr.reviews, pr.reviewDecision);
 
         expect(state.hasPendingChangeRequests).toBe(true);
         expect(state.isApproved).toBe(false);
         expect(state.reviewsPassing).toBe(false);
     });
 
-    it("comments only sets hasComments", () => {
+    it("comments only with review required does not pass", () => {
         const pr = SAMPLE_PULL_REQUESTS.withComments;
-        const state = getReviewState(pr.reviews);
+        const state = getReviewState(pr.reviews, pr.reviewDecision);
 
         expect(state.hasComments).toBe(true);
-        expect(state.reviewsPassing).toBe(true);
+        // reviewDecision is REVIEW_REQUIRED, so reviews are NOT passing
+        expect(state.reviewsPassing).toBe(false);
     });
 
     it("later approval overrides earlier changes requested", () => {
         const pr = createMockPullRequest({
+            reviewDecision: "APPROVED",
             reviews: {
                 edges: [
                     {
-                        node: { author: { login: "reviewer" }, state: "CHANGES_REQUESTED" },
+                        node: {
+                            author: { login: "reviewer" },
+                            state: "CHANGES_REQUESTED",
+                            createdAt: "2026-01-30T10:00:00Z",
+                        },
                     },
-                    { node: { author: { login: "reviewer" }, state: "APPROVED" } },
+                    {
+                        node: {
+                            author: { login: "reviewer" },
+                            state: "APPROVED",
+                            createdAt: "2026-01-30T11:00:00Z",
+                        },
+                    },
                 ],
             },
         });
-        const state = getReviewState(pr.reviews);
+        const state = getReviewState(pr.reviews, pr.reviewDecision);
 
         expect(state.isApproved).toBe(true);
         expect(state.hasPendingChangeRequests).toBe(false);
@@ -252,19 +267,27 @@ describe("Review State Logic", () => {
 
     it("multiple reviewers all must approve for isApproved", () => {
         const pr = createMockPullRequest({
+            reviewDecision: "CHANGES_REQUESTED",
             reviews: {
                 edges: [
-                    { node: { author: { login: "reviewer1" }, state: "APPROVED" } },
+                    {
+                        node: {
+                            author: { login: "reviewer1" },
+                            state: "APPROVED",
+                            createdAt: "2026-01-30T10:00:00Z",
+                        },
+                    },
                     {
                         node: {
                             author: { login: "reviewer2" },
                             state: "CHANGES_REQUESTED",
+                            createdAt: "2026-01-30T10:00:00Z",
                         },
                     },
                 ],
             },
         });
-        const state = getReviewState(pr.reviews);
+        const state = getReviewState(pr.reviews, pr.reviewDecision);
 
         expect(state.isApproved).toBe(false);
         expect(state.hasPendingChangeRequests).toBe(true);

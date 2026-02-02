@@ -11,7 +11,8 @@ import {
 import { fetchPullRequests } from "./requests";
 import type { ColorConfig, CurrentRepository, PullRequest, StatusBarItems } from "./types";
 
-let statusBarItems: StatusBarItems | undefined;
+const statusBarItems: StatusBarItems = {};
+const commandDisposables: Record<string, vscode.Disposable> = {};
 let timer: ReturnType<typeof setTimeout> | undefined;
 let refreshButton: vscode.StatusBarItem;
 let noResultsLabel: vscode.StatusBarItem;
@@ -33,27 +34,53 @@ const createNoResultsStatusBarItem = (context: vscode.ExtensionContext): void =>
     context.subscriptions.push(noResultsLabel);
 };
 
-const createPRStatusBarItem = (
+const clearAllPRStatusBarItemsAndCommands = () => {
+    for (const prId of Object.keys(statusBarItems)) {
+        statusBarItems[prId].dispose();
+        delete statusBarItems[prId];
+    }
+    for (const prId of Object.keys(commandDisposables)) {
+        commandDisposables[prId].dispose();
+        delete commandDisposables[prId];
+    }
+};
+
+const createOrUpdatePRStatusBarItem = (
     context: vscode.ExtensionContext,
-    prId: string,
     pr: PullRequest,
-): vscode.StatusBarItem => {
-    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-    context.subscriptions.push(statusBarItem);
+    titleRegex: string | null,
+    colorConfig: ColorConfig,
+) => {
+    const prId = `${pr.repository.name}${pr.number}`;
 
-    const disposable = vscode.commands.registerCommand(
-        `mitchells-monitor.openPullRequest.${prId}`,
-        () => {
-            vscode.commands.executeCommand("vscode.open", vscode.Uri.parse(pr.url));
-        },
-    );
-    context.subscriptions.push(disposable);
-
-    if (statusBarItems) {
+    let statusBarItem = statusBarItems[prId];
+    if (!statusBarItem) {
+        statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+        context.subscriptions.push(statusBarItem);
         statusBarItems[prId] = statusBarItem;
     }
 
-    return statusBarItem;
+    if (!commandDisposables[prId]) {
+        const disposable = vscode.commands.registerCommand(
+            `mitchells-monitor.openPullRequest.${prId}`,
+            () => {
+                vscode.commands.executeCommand("vscode.open", vscode.Uri.parse(pr.url));
+            },
+        );
+        commandDisposables[prId] = disposable;
+        context.subscriptions.push(disposable);
+    }
+
+    const pullRequestStatus = getPullRequestStatus(pr);
+    const pullRequestStatusIcon = getPullRequestStatusIcon(pullRequestStatus);
+    const displayText = generateDisplayText(pr, titleRegex);
+    const itemsToDisplayAsText = [pullRequestStatusIcon, displayText];
+
+    statusBarItem.text = itemsToDisplayAsText.filter((item) => item).join(" ");
+    statusBarItem.color = getPullRequestColour(pullRequestStatus, colorConfig);
+    statusBarItem.command = `mitchells-monitor.openPullRequest.${prId}`;
+    statusBarItem.tooltip = `${pr.repository.nameWithOwner}\n${pr.title}`;
+    statusBarItem.show();
 };
 
 /**
@@ -100,7 +127,6 @@ const detectWorkspaceRepositories = async (): Promise<CurrentRepository[]> => {
     );
     const results = await Promise.all(repoPromises);
 
-    // Filter out undefined and deduplicate by nameWithOwner
     const seen = new Set<string>();
     return results.filter((repo): repo is CurrentRepository => {
         if (!repo || seen.has(repo.nameWithOwner)) {
@@ -111,31 +137,10 @@ const detectWorkspaceRepositories = async (): Promise<CurrentRepository[]> => {
     });
 };
 
-const renderPullRequestItem = (
-    pr: PullRequest,
-    context: vscode.ExtensionContext,
-    titleRegex: string | null,
-    colorConfig: ColorConfig,
-) => {
-    const prId = `${pr.repository.name}${pr.number}`;
-    const statusBarItem = statusBarItems![prId] || createPRStatusBarItem(context, prId, pr);
-
-    const pullRequestStatus = getPullRequestStatus(pr);
-    const pullRequestStatusIcon = getPullRequestStatusIcon(pullRequestStatus);
-    const displayText = generateDisplayText(pr, titleRegex);
-
-    const itemsToDisplayAsText = [pullRequestStatusIcon, displayText];
-
-    statusBarItem.text = itemsToDisplayAsText.filter((item) => item).join(" ");
-    statusBarItem.color = getPullRequestColour(pullRequestStatus, colorConfig);
-    statusBarItem.command = `mitchells-monitor.openPullRequest.${prId}`;
-    statusBarItem.tooltip = `${pr.repository.name}\n${pr.title}`;
-    statusBarItem.show();
-};
-
 const fetchAndRenderPullRequests = async (
     context: vscode.ExtensionContext,
     config: vscode.WorkspaceConfiguration,
+    manual: boolean = false,
 ): Promise<void> => {
     const count = config.get<number>("count", 6);
     const titleRegex = config.get<string | null>("titleRegex", null);
@@ -147,6 +152,7 @@ const fetchAndRenderPullRequests = async (
     const token = context.globalState.get<string>("token");
 
     if (!token) {
+        clearAllPRStatusBarItemsAndCommands();
         vscode.window.showWarningMessage(
             "Mitchell's Monitor - Please enter a token to begin monitoring!",
         );
@@ -154,13 +160,6 @@ const fetchAndRenderPullRequests = async (
         refreshButton.text = "$(key)";
         refreshButton.tooltip = "Set token";
         return;
-    }
-
-    const workspaceRepos = await detectWorkspaceRepositories();
-
-    let workspaceRepoNames: Set<string> | undefined;
-    if (workspaceRepos.length > 0) {
-        workspaceRepoNames = new Set(workspaceRepos.map((r) => r.nameWithOwner));
     }
 
     let pullRequests: PullRequest[] = [];
@@ -174,6 +173,7 @@ const fetchAndRenderPullRequests = async (
     });
 
     if (fetchedPullRequests.status === "error") {
+        clearAllPRStatusBarItemsAndCommands();
         if (fetchedPullRequests.code === 401 || fetchedPullRequests.code === 403) {
             vscode.window.showErrorMessage("Mitchell's Monitor - Token not authorized!");
             refreshButton.command = "mitchells-monitor.setToken";
@@ -181,12 +181,25 @@ const fetchAndRenderPullRequests = async (
             refreshButton.tooltip = "Set token";
             return undefined;
         } else {
-            vscode.window.showErrorMessage(
-                `Mitchell's Monitor - There was an unknown error fetching the data. Check the console for details.`,
-            );
-            refreshButton.command = "mitchells-monitor.refresh.showError";
-            refreshButton.text = "$(zap)";
+            const githubEnterpriseUrl = config.get<string | null>("githubEnterpriseUrl", null);
+            const isVpnIssue = githubEnterpriseUrl && fetchedPullRequests.code === undefined;
+
             refreshButton.tooltip = "Connect to remote";
+            if (isVpnIssue) {
+                noResultsLabel.text = "Connect to VPN?";
+                noResultsLabel.tooltip = "Check VPN connection and refresh";
+                noResultsLabel.show();
+
+                refreshButton.text = "$(globe)";
+            } else {
+                refreshButton.text = "$(zap)";
+            }
+
+            if (manual) {
+                vscode.window.showErrorMessage(
+                    `Mitchell's Monitor - There was an unknown error fetching the data.`,
+                );
+            }
         }
     } else {
         refreshButton.command = "mitchells-monitor.refresh";
@@ -195,7 +208,6 @@ const fetchAndRenderPullRequests = async (
 
         const allPRs = fetchedPullRequests.data || [];
 
-        // Sort PRs to prioritize open > merged > closed
         const sortedPRs = allPRs.sort((a, b) => {
             const getStatePriority = (state: string) => {
                 switch (state) {
@@ -217,10 +229,14 @@ const fetchAndRenderPullRequests = async (
                 return priorityA - priorityB;
             }
 
-            // If same priority, sort by PR number descending (newest first)
             return b.number - a.number;
         });
 
+        const workspaceRepos = await detectWorkspaceRepositories();
+        let workspaceRepoNames: Set<string> | undefined;
+        if (workspaceRepos.length > 0) {
+            workspaceRepoNames = new Set(workspaceRepos.map((r) => r.nameWithOwner));
+        }
         if (workspaceRepoNames) {
             pullRequests = sortedPRs
                 .filter((pr) => {
@@ -231,39 +247,40 @@ const fetchAndRenderPullRequests = async (
         } else {
             pullRequests = sortedPRs;
         }
-    }
 
-    if (pullRequests.length === 0) {
-        noResultsLabel.show();
-        return;
-    } else {
-        noResultsLabel.hide();
-    }
-
-    if (!statusBarItems) {
-        statusBarItems = {};
-    } else {
-        const prIds = pullRequests.map((pr) => `${pr.repository.name}${pr.number}`);
-        Object.keys(statusBarItems).forEach((item) => {
-            if (!prIds.includes(item)) {
-                statusBarItems![item].hide();
-            }
+        clearAllPRStatusBarItemsAndCommands();
+        pullRequests.forEach((pr) => {
+            createOrUpdatePRStatusBarItem(context, pr, titleRegex, colorConfig);
         });
-    }
 
-    pullRequests.forEach((pr) => {
-        renderPullRequestItem(pr, context, titleRegex, colorConfig);
-    });
+        if (pullRequests.length === 0) {
+            noResultsLabel.text = "No PRs";
+            noResultsLabel.tooltip = "Refresh pull requests";
+            noResultsLabel.show();
+            return;
+        } else {
+            noResultsLabel.hide();
+        }
+
+        if (manual) {
+            vscode.window.showInformationMessage(
+                `Mitchell's Monitor - Fetched ${pullRequests.length} pull request(s)!`,
+            );
+        }
+    }
 };
 
-const getPullRequests = async (context: vscode.ExtensionContext): Promise<void> => {
+const getPullRequests = async (
+    context: vscode.ExtensionContext,
+    manual: boolean = false,
+): Promise<void> => {
     const config = vscode.workspace.getConfiguration("mitchells-monitor");
 
     if (timer) {
         clearTimeout(timer);
     }
 
-    await fetchAndRenderPullRequests(context, config).catch((e) => {
+    await fetchAndRenderPullRequests(context, config, manual).catch((e) => {
         console.error(e);
         vscode.window.showErrorMessage(
             `Mitchell's Monitor - An error has occurred while fetching pull requests: ${e.message}`,
@@ -326,22 +343,8 @@ export const activate = (context: vscode.ExtensionContext): void => {
     // Register refresh command
     context.subscriptions.push(
         vscode.commands.registerCommand("mitchells-monitor.refresh", () => {
-            getPullRequests(context);
-
-            vscode.window.showInformationMessage(
-                "Mitchell's Monitor - Refreshing pull requests...",
-            );
-        }),
-    );
-
-    // Register refresh with error display command
-    context.subscriptions.push(
-        vscode.commands.registerCommand("mitchells-monitor.refresh.showError", () => {
-            getPullRequests(context);
-
-            vscode.window.showInformationMessage(
-                "Mitchell's Monitor - Attempting to connect to remote...",
-            );
+            vscode.window.showInformationMessage("Mitchell's Monitor - Fetching pull requests...");
+            getPullRequests(context, true);
         }),
     );
 

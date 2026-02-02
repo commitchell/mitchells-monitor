@@ -18,10 +18,12 @@ export const createMockPullRequest = (overrides: Partial<PullRequest> = {}): Pul
             {
                 commit: {
                     status: null,
+                    committedDate: "2026-01-30T10:00:00Z",
                 },
             },
         ],
     },
+    reviewDecision: null, // null means no review policy configured
     reviews: {
         edges: [],
     },
@@ -73,8 +75,11 @@ export const SAMPLE_PULL_REQUESTS = {
         title: "Feature: Add new button",
         state: "OPEN",
         mergeable: "MERGEABLE",
+        reviewDecision: null, // No review policy configured
         commits: {
-            nodes: [{ commit: { status: { state: "SUCCESS" } } }],
+            nodes: [
+                { commit: { status: { state: "SUCCESS" }, committedDate: "2026-01-30T10:00:00Z" } },
+            ],
         },
     }),
 
@@ -90,8 +95,11 @@ export const SAMPLE_PULL_REQUESTS = {
         title: "WIP: New feature",
         state: "OPEN",
         mergeable: "UNKNOWN",
+        reviewDecision: null, // No review policy configured
         commits: {
-            nodes: [{ commit: { status: { state: "PENDING" } } }],
+            nodes: [
+                { commit: { status: { state: "PENDING" }, committedDate: "2026-01-30T10:00:00Z" } },
+            ],
         },
     }),
 
@@ -100,8 +108,11 @@ export const SAMPLE_PULL_REQUESTS = {
         title: "Broken build",
         state: "OPEN",
         mergeable: "MERGEABLE",
+        reviewDecision: null, // No review policy configured
         commits: {
-            nodes: [{ commit: { status: { state: "FAILURE" } } }],
+            nodes: [
+                { commit: { status: { state: "FAILURE" }, committedDate: "2026-01-30T10:00:00Z" } },
+            ],
         },
     }),
 
@@ -125,8 +136,17 @@ export const SAMPLE_PULL_REQUESTS = {
         title: "Approved PR",
         state: "OPEN",
         mergeable: "MERGEABLE",
+        reviewDecision: "APPROVED",
         reviews: {
-            edges: [{ node: { author: { login: "reviewer1" }, state: "APPROVED" } }],
+            edges: [
+                {
+                    node: {
+                        author: { login: "reviewer1" },
+                        state: "APPROVED",
+                        createdAt: "2026-01-30T11:00:00Z",
+                    },
+                },
+            ],
         },
     }),
 
@@ -135,10 +155,15 @@ export const SAMPLE_PULL_REQUESTS = {
         title: "Needs changes",
         state: "OPEN",
         mergeable: "MERGEABLE",
+        reviewDecision: "CHANGES_REQUESTED",
         reviews: {
             edges: [
                 {
-                    node: { author: { login: "reviewer1" }, state: "CHANGES_REQUESTED" },
+                    node: {
+                        author: { login: "reviewer1" },
+                        state: "CHANGES_REQUESTED",
+                        createdAt: "2026-01-30T11:00:00Z",
+                    },
                 },
             ],
         },
@@ -149,8 +174,17 @@ export const SAMPLE_PULL_REQUESTS = {
         title: "Has comments",
         state: "OPEN",
         mergeable: "MERGEABLE",
+        reviewDecision: "REVIEW_REQUIRED", // Has comments but not approved
         reviews: {
-            edges: [{ node: { author: { login: "reviewer1" }, state: "COMMENTED" } }],
+            edges: [
+                {
+                    node: {
+                        author: { login: "reviewer1" },
+                        state: "COMMENTED",
+                        createdAt: "2026-01-30T11:00:00Z",
+                    },
+                },
+            ],
         },
     }),
 

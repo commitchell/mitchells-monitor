@@ -6,6 +6,7 @@ export interface CommitStatus {
 
 export interface Commit {
     status: CommitStatus | null;
+    committedDate: string;
 }
 
 export interface CommitNode {
@@ -17,6 +18,7 @@ export interface ReviewNode {
     author: {
         login: string;
     };
+    createdAt: string;
 }
 
 export interface ReviewEdge {
@@ -44,6 +46,8 @@ export interface Repository {
     };
 }
 
+export type ReviewDecision = "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
+
 export interface PullRequest {
     repository: Repository;
     number: number;
@@ -57,6 +61,7 @@ export interface PullRequest {
     commits: {
         nodes: CommitNode[];
     };
+    reviewDecision: ReviewDecision;
     reviews: Reviews;
 }
 

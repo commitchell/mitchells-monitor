@@ -43,20 +43,71 @@ export const getLastStateByAuthor = (reviewsByAuthor: Record<string, ReviewNode[
         .filter((item): item is string => item !== undefined);
 };
 
-export const getReviewState = (reviews: { edges: ReviewEdge[] }): ReviewState => {
+import type { ReviewDecision } from "./types";
+
+export const getReviewState = (
+    reviews: { edges: ReviewEdge[] },
+    reviewDecision?: ReviewDecision,
+): ReviewState => {
     const reviewsCount = reviews.edges.length;
     const reviewsByAuthor = reviewsCount > 0 ? getReviewsByAuthor(reviews.edges) : null;
     const lastStateByAuthor = reviewsByAuthor ? getLastStateByAuthor(reviewsByAuthor) : [];
-    const hasPendingChangeRequests =
-        lastStateByAuthor.length > 0
-            ? lastStateByAuthor.some((state) => state === "CHANGES_REQUESTED")
-            : undefined;
-    const isApproved =
-        lastStateByAuthor.length > 0
-            ? lastStateByAuthor.every((state) => state === "APPROVED")
-            : undefined;
+
+    // Use reviewDecision from GitHub API which accounts for:
+    // - Required number of approvals
+    // - Codeowner requirements
+    // - Branch protection rules
+    let hasPendingChangeRequests: boolean | undefined;
+    let isApproved: boolean | undefined;
+    let reviewsPassing: boolean;
+
+    if (reviewDecision !== undefined) {
+        // reviewDecision is provided - use GitHub's authoritative decision
+        switch (reviewDecision) {
+            case "APPROVED":
+                reviewsPassing = true;
+                isApproved = true;
+                hasPendingChangeRequests = false;
+                break;
+            case "CHANGES_REQUESTED":
+                reviewsPassing = false;
+                isApproved = false;
+                hasPendingChangeRequests = true;
+                break;
+            case "REVIEW_REQUIRED":
+                reviewsPassing = false;
+                isApproved = false;
+                hasPendingChangeRequests = false;
+                break;
+            case null:
+                // No review policy configured - reviews are not required
+                reviewsPassing = true;
+                isApproved = undefined;
+                hasPendingChangeRequests = undefined;
+                break;
+        }
+    } else {
+        // Fallback for tests or when reviewDecision is not available
+        hasPendingChangeRequests =
+            lastStateByAuthor.length > 0
+                ? lastStateByAuthor.some((state) => state === "CHANGES_REQUESTED")
+                : undefined;
+        isApproved =
+            lastStateByAuthor.length > 0
+                ? lastStateByAuthor.every((state) => state === "APPROVED")
+                : undefined;
+
+        // When no reviewDecision, match GitHub's behavior:
+        // If there are no reviews, treat as passing (unprotected branch or no review activity)
+        if (reviewsCount === 0) {
+            reviewsPassing = true;
+        } else {
+            reviewsPassing = isApproved === true && !hasPendingChangeRequests;
+        }
+    }
+
     const hasComments = reviews.edges.some(({ node }) => node.state === "COMMENTED");
-    const reviewsPassing = reviewsCount === 0 || !hasPendingChangeRequests || isApproved === true;
+
     return {
         reviewsPassing,
         hasComments,
@@ -120,10 +171,15 @@ export const getPullRequestStatus = (pr: PullRequest): PullRequestStatus => {
     }
 
     const blockingReasons: PullRequestBlockingReason[] = [];
-    const { reviewsPassing, hasPendingChangeRequests } = getReviewState(pr.reviews);
-    const commit = pr.commits.nodes[0].commit.status;
+    const commit = pr.commits.nodes[0].commit;
+    const commitStatus = commit.status;
+    const { reviewsPassing, hasPendingChangeRequests } = getReviewState(
+        pr.reviews,
+        pr.reviewDecision,
+    );
+    const { potentialMergeCommit } = pr;
 
-    if (commit !== null && commit.state === "PENDING") {
+    if (commitStatus !== null && commitStatus.state === "PENDING") {
         blockingReasons.push("CHECKS_PENDING");
     }
 
@@ -131,11 +187,10 @@ export const getPullRequestStatus = (pr: PullRequest): PullRequestStatus => {
         blockingReasons.push("REVIEWS_NOT_SATISFIED");
     }
 
-    if (commit !== null && commit.state === "FAILURE") {
+    if (commitStatus !== null && commitStatus.state === "FAILURE") {
         blockingReasons.push("CHECKS_FAILING");
     }
 
-    const { potentialMergeCommit } = pr;
     if (potentialMergeCommit && potentialMergeCommit.status !== null) {
         blockingReasons.push("MERGE_COMMIT_ISSUES");
     }
@@ -148,12 +203,15 @@ export const getPullRequestStatus = (pr: PullRequest): PullRequestStatus => {
         blockingReasons.push("CHANGES_REQUESTED");
     }
 
-    // If PR is not in a mergeable state and we haven't identified specific reasons
-    if (pr.mergeable !== "MERGEABLE" && blockingReasons.length === 0) {
+    if (blockingReasons.length === 0 && pr.mergeable === "MERGEABLE") {
+        return "MERGEABLE";
+    }
+
+    if (blockingReasons.length === 0) {
         blockingReasons.push("UNKNOWN");
     }
 
-    return blockingReasons.length ? blockingReasons : "MERGEABLE";
+    return blockingReasons;
 };
 
 export const getPullRequestStatusIcon = (status: PullRequestStatus): string | undefined => {
