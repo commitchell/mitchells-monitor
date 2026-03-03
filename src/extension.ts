@@ -79,7 +79,11 @@ const createOrUpdatePRStatusBarItem = (
     statusBarItem.text = itemsToDisplayAsText.filter((item) => item).join(" ");
     statusBarItem.color = getPullRequestColour(pullRequestStatus, colorConfig);
     statusBarItem.command = `mitchells-monitor.openPullRequest.${prId}`;
-    statusBarItem.tooltip = `${pr.repository.nameWithOwner}\n${pr.title}`;
+
+    const updatedDate = new Date(pr.updatedAt);
+    const updatedLabel = `Last updated: ${updatedDate.toLocaleDateString()} ${updatedDate.toLocaleTimeString()}`;
+    const draftLabel = pr.isDraft ? " [DRAFT]" : "";
+    statusBarItem.tooltip = `${pr.repository.nameWithOwner}\n${pr.title}${draftLabel}\n${updatedLabel}`;
     statusBarItem.show();
 };
 

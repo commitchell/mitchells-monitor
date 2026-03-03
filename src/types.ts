@@ -1,12 +1,13 @@
 import type * as vscode from "vscode";
 
-export interface CommitStatus {
-    state: "SUCCESS" | "PENDING" | "FAILURE" | null;
+export type StatusState = "ERROR" | "EXPECTED" | "FAILURE" | "PENDING" | "SUCCESS";
+
+export interface StatusCheckRollup {
+    state: StatusState;
 }
 
 export interface Commit {
-    status: CommitStatus | null;
-    committedDate: string;
+    statusCheckRollup: StatusCheckRollup | null;
 }
 
 export interface CommitNode {
@@ -18,7 +19,6 @@ export interface ReviewNode {
     author: {
         login: string;
     };
-    createdAt: string;
 }
 
 export interface ReviewEdge {
@@ -27,15 +27,6 @@ export interface ReviewEdge {
 
 export interface Reviews {
     edges: ReviewEdge[];
-}
-
-export interface PotentialMergeCommit {
-    status: {
-        state: string;
-        commit: {
-            status: CommitStatus | null;
-        };
-    } | null;
 }
 
 export interface Repository {
@@ -53,11 +44,10 @@ export interface PullRequest {
     number: number;
     mergeable: "MERGEABLE" | "UNKNOWN" | "CONFLICTING";
     state: "OPEN" | "CLOSED" | "MERGED";
+    isDraft: boolean;
     title: string;
-    mergedAt: string | null;
-    merged: boolean;
     url: string;
-    potentialMergeCommit: PotentialMergeCommit | null;
+    updatedAt: string;
     commits: {
         nodes: CommitNode[];
     };
@@ -76,25 +66,32 @@ export interface ColorConfig {
     merged?: string;
     mergeable?: string;
     closed?: string;
+    draft?: string;
     unknown?: string;
     changes_requested?: string;
     has_conflicts?: string;
-    merge_commit_issues?: string;
     checks_failing?: string;
     reviews_not_satisfied?: string;
     checks_pending?: string;
 }
+
+export type PullRequestStatusStatus = "MERGEABLE" | "OPEN" | "CLOSED" | "MERGED" | "DRAFT";
 
 export type PullRequestBlockingReason =
     | "HAS_CONFLICTS"
     | "REVIEWS_NOT_SATISFIED"
     | "CHANGES_REQUESTED"
     | "CHECKS_PENDING"
-    | "CHECKS_FAILING"
-    | "MERGE_COMMIT_ISSUES"
-    | "UNKNOWN";
+    | "CHECKS_FAILING";
 
-export type PullRequestStatus = "MERGEABLE" | "CLOSED" | "MERGED" | PullRequestBlockingReason[];
+export type PullRequestStatus =
+    | {
+          status: Extract<PullRequestStatusStatus, "OPEN" | "DRAFT">;
+          blockingReasons: PullRequestBlockingReason[];
+      }
+    | {
+          status: Extract<PullRequestStatusStatus, "MERGEABLE" | "CLOSED" | "MERGED">;
+      };
 
 export interface CurrentRepository {
     nameWithOwner: string;

@@ -90,6 +90,13 @@ describe("Pull Request Rendering Logic", () => {
         expect(text).toContain("rgba(144, 155, 155, 1)");
     });
 
+    it("draft PR shows draft icon", () => {
+        const pr = SAMPLE_PULL_REQUESTS.draft;
+        const text = generateStatusBarText(pr);
+        expect(text).toContain("$(git-pull-request-draft)");
+        expect(text).toContain("rgba(110, 118, 129, 1)");
+    });
+
     it("approved PR shows thumbsup icon", () => {
         const pr = SAMPLE_PULL_REQUESTS.withApprovedReview;
         const text = generateStatusBarText(pr);
@@ -135,7 +142,7 @@ describe("Pull Request Color Logic", () => {
         const pr = SAMPLE_PULL_REQUESTS.merged;
         const status = getPullRequestStatus(pr);
         const color = getPullRequestColour(status);
-        expect(status).toBe("MERGED");
+        expect(status.status).toBe("MERGED");
         expect(color).toBe("rgba(214, 172, 255, 1)");
     });
 
@@ -143,7 +150,7 @@ describe("Pull Request Color Logic", () => {
         const pr = SAMPLE_PULL_REQUESTS.closed;
         const status = getPullRequestStatus(pr);
         const color = getPullRequestColour(status);
-        expect(status).toBe("CLOSED");
+        expect(status.status).toBe("CLOSED");
         expect(color).toBe("rgba(144, 155, 155, 1)");
     });
 
@@ -151,12 +158,11 @@ describe("Pull Request Color Logic", () => {
         const pr = createMockPullRequest({
             state: "OPEN",
             mergeable: "MERGEABLE",
-            commits: { nodes: [{ commit: { status: { state: "SUCCESS" } } }] },
-            potentialMergeCommit: { status: null },
+            commits: { nodes: [{ commit: { statusCheckRollup: { state: "SUCCESS" } } }] },
         });
         const status = getPullRequestStatus(pr);
         const color = getPullRequestColour(status);
-        expect(status).toBe("MERGEABLE");
+        expect(status.status).toBe("MERGEABLE");
         expect(color).toBe("rgba(77, 237, 186, 1)");
     });
 
@@ -164,7 +170,8 @@ describe("Pull Request Color Logic", () => {
         const pr = SAMPLE_PULL_REQUESTS.openWithConflicts;
         const status = getPullRequestStatus(pr);
         const color = getPullRequestColour(status);
-        expect(Array.isArray(status)).toBe(true);
+        expect(status.blockingReasons).toBeDefined();
+        expect(status.blockingReasons).toContain("HAS_CONFLICTS");
         expect(color).toBe("rgba(255, 115, 82, 1)");
     });
 
@@ -180,19 +187,20 @@ describe("Pull Request Color Logic", () => {
             merged: "#custom-merged",
             mergeable: "#custom-mergeable",
             closed: "#custom-closed",
+            draft: "#custom-draft",
             unknown: "#custom-unknown",
             changes_requested: "#custom-changes-requested",
             has_conflicts: "#custom-has-conflicts",
-            merge_commit_issues: "#custom-merge-commit-issues",
             checks_failing: "#custom-checks-failing",
             reviews_not_satisfied: "#custom-reviews-not-satisfied",
             checks_pending: "#custom-checks-pending",
         };
-        expect(getPullRequestColour("MERGED", customColors)).toBe("#custom-merged");
-        expect(getPullRequestColour("MERGEABLE", customColors)).toBe("#custom-mergeable");
-        expect(getPullRequestColour("CLOSED", customColors)).toBe("#custom-closed");
-        expect(getPullRequestColour(["HAS_CONFLICTS"], customColors)).toBe("#custom-has-conflicts");
-        expect(getPullRequestColour(["CHECKS_PENDING"], customColors)).toBe(
+        expect(getPullRequestColour({ status: "MERGED" }, customColors)).toBe("#custom-merged");
+        expect(getPullRequestColour({ status: "MERGEABLE" }, customColors)).toBe("#custom-mergeable");
+        expect(getPullRequestColour({ status: "CLOSED" }, customColors)).toBe("#custom-closed");
+        expect(getPullRequestColour({ status: "DRAFT" }, customColors)).toBe("#custom-draft");
+        expect(getPullRequestColour({ status: "OPEN", blockingReasons: ["HAS_CONFLICTS"] }, customColors)).toBe("#custom-has-conflicts");
+        expect(getPullRequestColour({ status: "OPEN", blockingReasons: ["CHECKS_PENDING"] }, customColors)).toBe(
             "#custom-checks-pending",
         );
     });
@@ -245,14 +253,12 @@ describe("Review State Logic", () => {
                         node: {
                             author: { login: "reviewer" },
                             state: "CHANGES_REQUESTED",
-                            createdAt: "2026-01-30T10:00:00Z",
                         },
                     },
                     {
                         node: {
                             author: { login: "reviewer" },
                             state: "APPROVED",
-                            createdAt: "2026-01-30T11:00:00Z",
                         },
                     },
                 ],
@@ -274,14 +280,12 @@ describe("Review State Logic", () => {
                         node: {
                             author: { login: "reviewer1" },
                             state: "APPROVED",
-                            createdAt: "2026-01-30T10:00:00Z",
                         },
                     },
                     {
                         node: {
                             author: { login: "reviewer2" },
                             state: "CHANGES_REQUESTED",
-                            createdAt: "2026-01-30T10:00:00Z",
                         },
                     },
                 ],

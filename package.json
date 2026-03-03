@@ -127,9 +127,9 @@
                                 "type": "string",
                                 "description": "Colour for pull requests with conflicts"
                             },
-                            "merge_commit_issues": {
+                            "draft": {
                                 "type": "string",
-                                "description": "Colour for pull requests with merge commit issues"
+                                "description": "Colour for draft pull requests"
                             },
                             "checks_failing": {
                                 "type": "string",

@@ -13,23 +13,14 @@ export const viewer = `query {
             number
             mergeable
             state
+            isDraft
             title
-            mergedAt
-            merged
             url
-            potentialMergeCommit {
-              status {
-                state
-                commit {
-                  status{ state }
-                }
-              }
-            }
+            updatedAt
             commits(last: 1){
               nodes{
                 commit{
-                  committedDate
-                  status{
+                  statusCheckRollup{
                     state
                   }
                 }
@@ -40,7 +31,6 @@ export const viewer = `query {
               edges {
                 node {
                   state
-                  createdAt
                   author {
                     login
                   }
@@ -66,22 +56,14 @@ export const repository = `{
         number
         mergeable
         state
+        isDraft
         title
-        mergedAt
-        merged
         url
-        potentialMergeCommit {
-          status {
-            state
-            commit {
-              status{ state }
-            }
-          }
-        }
+        updatedAt
         commits(last: 1){
           nodes{
             commit{
-              status{
+              statusCheckRollup{
                 state
               }
             }

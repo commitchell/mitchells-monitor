@@ -8,35 +8,30 @@ describe("Utils Tests", () => {
             node: {
                 author: { login: "alice" },
                 state: "COMMENTED",
-                createdAt: "2026-01-30T10:00:00Z",
             },
         },
         {
             node: {
                 author: { login: "jane" },
                 state: "COMMENTED",
-                createdAt: "2026-01-30T10:00:00Z",
             },
         },
         {
             node: {
                 author: { login: "john" },
                 state: "APPROVED",
-                createdAt: "2026-01-30T10:00:00Z",
             },
         },
         {
             node: {
                 author: { login: "jane" },
                 state: "APPROVED",
-                createdAt: "2026-01-30T10:00:00Z",
             },
         },
         {
             node: {
                 author: { login: "marc" },
                 state: "CHANGES_REQUESTED",
-                createdAt: "2026-01-30T10:00:00Z",
             },
         },
     ];
@@ -47,25 +42,20 @@ describe("Utils Tests", () => {
                 {
                     author: { login: "alice" },
                     state: "COMMENTED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             ],
-            john: [
-                { author: { login: "john" }, state: "APPROVED", createdAt: "2026-01-30T10:00:00Z" },
-            ],
+            john: [{ author: { login: "john" }, state: "APPROVED" }],
             jane: [
                 {
                     author: { login: "jane" },
                     state: "COMMENTED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
-                { author: { login: "jane" }, state: "APPROVED", createdAt: "2026-01-30T10:00:00Z" },
+                { author: { login: "jane" }, state: "APPROVED" },
             ],
             marc: [
                 {
                     author: { login: "marc" },
                     state: "CHANGES_REQUESTED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             ],
         };
@@ -110,42 +100,36 @@ describe("Utils Tests", () => {
                 node: {
                     author: { login: "alice" },
                     state: "COMMENTED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
             {
                 node: {
                     author: { login: "jane" },
                     state: "COMMENTED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
             {
                 node: {
                     author: { login: "john" },
                     state: "APPROVED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
             {
                 node: {
                     author: { login: "jane" },
                     state: "APPROVED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
             {
                 node: {
                     author: { login: "marc" },
                     state: "CHANGES_REQUESTED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
             {
                 node: {
                     author: { login: "marc" },
                     state: "APPROVED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
         ];
@@ -165,28 +149,24 @@ describe("Utils Tests", () => {
                 node: {
                     author: { login: "john" },
                     state: "APPROVED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
             {
                 node: {
                     author: { login: "jane" },
                     state: "APPROVED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
             {
                 node: {
                     author: { login: "marc" },
                     state: "CHANGES_REQUESTED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
             {
                 node: {
                     author: { login: "marc" },
                     state: "APPROVED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
         ];
@@ -206,28 +186,24 @@ describe("Utils Tests", () => {
                 node: {
                     author: { login: "john" },
                     state: "COMMENTED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
             {
                 node: {
                     author: { login: "jane" },
                     state: "COMMENTED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
             {
                 node: {
                     author: { login: "marc" },
                     state: "COMMENTED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
             {
                 node: {
                     author: { login: "marc" },
                     state: "COMMENTED",
-                    createdAt: "2026-01-30T10:00:00Z",
                 },
             },
         ];

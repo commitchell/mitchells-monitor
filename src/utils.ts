@@ -165,110 +165,118 @@ export const generateDisplayText = (
 
 export const getPullRequestStatus = (pr: PullRequest): PullRequestStatus => {
     if (pr.state === "MERGED") {
-        return "MERGED";
+        return { status: "MERGED" };
     } else if (pr.state === "CLOSED") {
-        return "CLOSED";
+        return { status: "CLOSED" };
     }
 
+    const status = pr.isDraft ? "DRAFT" : "OPEN";
     const blockingReasons: PullRequestBlockingReason[] = [];
-    const commit = pr.commits.nodes[0].commit;
-    const commitStatus = commit.status;
+
+    const rollupState = pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null;
     const { reviewsPassing, hasPendingChangeRequests } = getReviewState(
         pr.reviews,
         pr.reviewDecision,
     );
-    const { potentialMergeCommit } = pr;
 
-    if (commitStatus !== null && commitStatus.state === "PENDING") {
+    // Push in ascending priority order (last item determines icon/color)
+    // 1. Reviews not passing (lowest display priority)
+    if (!reviewsPassing) {
+        if (hasPendingChangeRequests) {
+            blockingReasons.push("CHANGES_REQUESTED");
+        } else {
+            blockingReasons.push("REVIEWS_NOT_SATISFIED");
+        }
+    }
+
+    // 2. Checks
+    if (rollupState === "PENDING" || rollupState === "EXPECTED") {
         blockingReasons.push("CHECKS_PENDING");
     }
-
-    if (!reviewsPassing) {
-        blockingReasons.push("REVIEWS_NOT_SATISFIED");
-    }
-
-    if (commitStatus !== null && commitStatus.state === "FAILURE") {
+    if (rollupState === "FAILURE" || rollupState === "ERROR") {
         blockingReasons.push("CHECKS_FAILING");
     }
 
-    if (potentialMergeCommit && potentialMergeCommit.status !== null) {
-        blockingReasons.push("MERGE_COMMIT_ISSUES");
-    }
-
+    // 3. Merge conflicts
     if (pr.mergeable === "CONFLICTING") {
         blockingReasons.push("HAS_CONFLICTS");
     }
 
-    if (hasPendingChangeRequests) {
-        blockingReasons.push("CHANGES_REQUESTED");
-    }
-
     if (blockingReasons.length === 0 && pr.mergeable === "MERGEABLE") {
-        return "MERGEABLE";
+        return { status: "MERGEABLE" };
     }
 
-    if (blockingReasons.length === 0) {
-        blockingReasons.push("UNKNOWN");
-    }
-
-    return blockingReasons;
+    return { status, blockingReasons };
 };
 
-export const getPullRequestStatusIcon = (status: PullRequestStatus): string | undefined => {
-    switch (status) {
+const getBlockingReasonIcon = (reasons: PullRequestBlockingReason[]): string => {
+    const reasonToUse = reasons.length === 0 ? "UNKNOWN" : reasons[reasons.length - 1];
+    switch (reasonToUse) {
+        case "UNKNOWN":
+            return "$(question)";
+        case "CHANGES_REQUESTED":
+            return "$(request-changes)";
+        case "HAS_CONFLICTS":
+            return "$(warning)";
+        case "CHECKS_PENDING":
+            return "$(kebab-horizontal)";
+        case "CHECKS_FAILING":
+            return "$(error)";
+        case "REVIEWS_NOT_SATISFIED":
+            return "$(eye)";
+    }
+};
+
+export const getPullRequestStatusIcon = (prStatus: PullRequestStatus): string | undefined => {
+    switch (prStatus.status) {
         case "MERGEABLE":
             return "$(pass-filled)";
         case "CLOSED":
             return "$(git-pull-request-closed)";
         case "MERGED":
             return "$(git-merge)";
-        default:
-            switch (status[status.length - 1]) {
-                case "UNKNOWN":
-                    return "$(question)";
-                case "CHANGES_REQUESTED":
-                    return "$(request-changes)";
-                case "HAS_CONFLICTS":
-                    return "$(warning)";
-                case "MERGE_COMMIT_ISSUES":
-                    return "$(warning)";
-                case "CHECKS_PENDING":
-                    return "$(kebab-horizontal)";
-                case "CHECKS_FAILING":
-                    return "$(error)";
-                case "REVIEWS_NOT_SATISFIED":
-                    return "$(eye)";
-            }
+        case "DRAFT":
+            return "$(git-pull-request-draft)";
+        case "OPEN":
+            return getBlockingReasonIcon(prStatus.blockingReasons);
+    }
+};
+
+const getBlockingReasonColour = (
+    reasons: PullRequestBlockingReason[],
+    colorConfig: ColorConfig = {},
+): string => {
+    const reasonToUse = reasons.length === 0 ? "UNKNOWN" : reasons[reasons.length - 1];
+    switch (reasonToUse) {
+        case "UNKNOWN":
+            return colorConfig.unknown || "rgba(255, 115, 82, 1)"; // #FF7352
+        case "CHANGES_REQUESTED":
+            return colorConfig.changes_requested || "rgba(255, 115, 82, 1)"; // #FF7352
+        case "HAS_CONFLICTS":
+            return colorConfig.has_conflicts || "rgba(255, 115, 82, 1)"; // #FF7352
+        case "CHECKS_FAILING":
+            return colorConfig.checks_failing || "rgba(255, 115, 82, 1)"; // #FF7352
+        case "REVIEWS_NOT_SATISFIED":
+            return colorConfig.reviews_not_satisfied || "rgba(255, 115, 82, 1)"; // #FF7352
+        case "CHECKS_PENDING":
+            return colorConfig.checks_pending || "rgba(255, 227, 77, 1)"; // #FFE34D
     }
 };
 
 export const getPullRequestColour = (
-    status: PullRequestStatus,
+    prStatus: PullRequestStatus,
     colorConfig: ColorConfig = {},
 ): string => {
-    switch (status) {
+    switch (prStatus.status) {
         case "MERGEABLE":
             return colorConfig.mergeable || "rgba(77, 237, 186, 1)"; // #4DEDBA
         case "CLOSED":
             return colorConfig.closed || "rgba(144, 155, 155, 1)"; // #909B9B
         case "MERGED":
             return colorConfig.merged || "rgba(214, 172, 255, 1)"; // #D6ACFF
-        default:
-            switch (status[status.length - 1]) {
-                case "UNKNOWN":
-                    return colorConfig.unknown || "rgba(255, 115, 82, 1)"; // #FF7352
-                case "CHANGES_REQUESTED":
-                    return colorConfig.changes_requested || "rgba(255, 115, 82, 1)"; // #FF7352
-                case "HAS_CONFLICTS":
-                    return colorConfig.has_conflicts || "rgba(255, 115, 82, 1)"; // #FF7352
-                case "MERGE_COMMIT_ISSUES":
-                    return colorConfig.merge_commit_issues || "rgba(255, 115, 82, 1)"; // #FF7352
-                case "CHECKS_FAILING":
-                    return colorConfig.checks_failing || "rgba(255, 115, 82, 1)"; // #FF7352
-                case "REVIEWS_NOT_SATISFIED":
-                    return colorConfig.reviews_not_satisfied || "rgba(255, 115, 82, 1)"; // #FF7352
-                case "CHECKS_PENDING":
-                    return colorConfig.checks_pending || "rgba(255, 227, 77, 1)"; // #FFE34D
-            }
+        case "DRAFT":
+            return colorConfig.draft || "rgba(110, 118, 129, 1)"; // #6E7681
+        case "OPEN":
+            return getBlockingReasonColour(prStatus.blockingReasons, colorConfig);
     }
 };

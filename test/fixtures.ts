@@ -8,17 +8,15 @@ export const createMockPullRequest = (overrides: Partial<PullRequest> = {}): Pul
     number: 1,
     mergeable: "MERGEABLE",
     state: "OPEN",
+    isDraft: false,
     title: "Test PR",
-    mergedAt: null,
-    merged: false,
     url: "https://github.com/test/test-repo/pull/1",
-    potentialMergeCommit: null,
+    updatedAt: "2026-01-30T12:00:00Z",
     commits: {
         nodes: [
             {
                 commit: {
-                    status: null,
-                    committedDate: "2026-01-30T10:00:00Z",
+                    statusCheckRollup: null,
                 },
             },
         ],
@@ -78,7 +76,7 @@ export const SAMPLE_PULL_REQUESTS = {
         reviewDecision: null, // No review policy configured
         commits: {
             nodes: [
-                { commit: { status: { state: "SUCCESS" }, committedDate: "2026-01-30T10:00:00Z" } },
+                { commit: { statusCheckRollup: { state: "SUCCESS" } } },
             ],
         },
     }),
@@ -98,7 +96,7 @@ export const SAMPLE_PULL_REQUESTS = {
         reviewDecision: null, // No review policy configured
         commits: {
             nodes: [
-                { commit: { status: { state: "PENDING" }, committedDate: "2026-01-30T10:00:00Z" } },
+                { commit: { statusCheckRollup: { state: "PENDING" } } },
             ],
         },
     }),
@@ -111,7 +109,7 @@ export const SAMPLE_PULL_REQUESTS = {
         reviewDecision: null, // No review policy configured
         commits: {
             nodes: [
-                { commit: { status: { state: "FAILURE" }, committedDate: "2026-01-30T10:00:00Z" } },
+                { commit: { statusCheckRollup: { state: "FAILURE" } } },
             ],
         },
     }),
@@ -120,15 +118,20 @@ export const SAMPLE_PULL_REQUESTS = {
         number: 5,
         title: "Merged PR",
         state: "MERGED",
-        merged: true,
-        mergedAt: "2026-01-30T12:00:00Z",
     }),
 
     closed: createMockPullRequest({
         number: 6,
         title: "Closed PR",
         state: "CLOSED",
-        merged: false,
+    }),
+
+    draft: createMockPullRequest({
+        number: 11,
+        title: "Draft PR",
+        state: "OPEN",
+        isDraft: true,
+        mergeable: "UNKNOWN",
     }),
 
     withApprovedReview: createMockPullRequest({
@@ -143,7 +146,6 @@ export const SAMPLE_PULL_REQUESTS = {
                     node: {
                         author: { login: "reviewer1" },
                         state: "APPROVED",
-                        createdAt: "2026-01-30T11:00:00Z",
                     },
                 },
             ],
@@ -162,7 +164,6 @@ export const SAMPLE_PULL_REQUESTS = {
                     node: {
                         author: { login: "reviewer1" },
                         state: "CHANGES_REQUESTED",
-                        createdAt: "2026-01-30T11:00:00Z",
                     },
                 },
             ],
@@ -181,7 +182,6 @@ export const SAMPLE_PULL_REQUESTS = {
                     node: {
                         author: { login: "reviewer1" },
                         state: "COMMENTED",
-                        createdAt: "2026-01-30T11:00:00Z",
                     },
                 },
             ],

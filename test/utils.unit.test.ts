@@ -12,43 +12,44 @@ import { SAMPLE_PULL_REQUESTS } from "./fixtures";
 describe("Utils - Pull Request Status Functions", () => {
     it("getPullRequestStatus returns MERGED for merged PR", () => {
         const pr = SAMPLE_PULL_REQUESTS.merged;
-        expect(getPullRequestStatus(pr)).toBe("MERGED");
+        expect(getPullRequestStatus(pr)).toEqual({ status: "MERGED" });
     });
 
     it("getPullRequestStatus returns CLOSED for closed PR", () => {
         const pr = SAMPLE_PULL_REQUESTS.closed;
-        expect(getPullRequestStatus(pr)).toBe("CLOSED");
+        expect(getPullRequestStatus(pr)).toEqual({ status: "CLOSED" });
     });
 
-    it("getPullRequestStatus returns array for blocking reasons", () => {
+    it("getPullRequestStatus returns object with blocking reasons", () => {
         const pr = SAMPLE_PULL_REQUESTS.openWithConflicts;
         const status = getPullRequestStatus(pr);
-        expect(Array.isArray(status)).toBe(true);
-        expect(status).toContain("HAS_CONFLICTS");
+        expect(status).toHaveProperty("status", "OPEN");
+        expect(status).toHaveProperty("blockingReasons");
+        expect(status.blockingReasons).toContain("HAS_CONFLICTS");
     });
 
     it("getPullRequestStatusIcon returns correct icon for MERGEABLE", () => {
-        expect(getPullRequestStatusIcon("MERGEABLE")).toBe("$(pass-filled)");
+        expect(getPullRequestStatusIcon({ status: "MERGEABLE" })).toBe("$(pass-filled)");
     });
 
     it("getPullRequestStatusIcon returns correct icon for CLOSED", () => {
-        expect(getPullRequestStatusIcon("CLOSED")).toBe("$(git-pull-request-closed)");
+        expect(getPullRequestStatusIcon({ status: "CLOSED" })).toBe("$(git-pull-request-closed)");
     });
 
     it("getPullRequestStatusIcon returns correct icon for MERGED", () => {
-        expect(getPullRequestStatusIcon("MERGED")).toBe("$(git-merge)");
+        expect(getPullRequestStatusIcon({ status: "MERGED" })).toBe("$(git-merge)");
     });
 
     it("getPullRequestColour returns correct color for MERGEABLE", () => {
-        expect(getPullRequestColour("MERGEABLE")).toBe("rgba(77, 237, 186, 1)");
+        expect(getPullRequestColour({ status: "MERGEABLE" })).toBe("rgba(77, 237, 186, 1)");
     });
 
     it("getPullRequestColour returns correct color for CLOSED", () => {
-        expect(getPullRequestColour("CLOSED")).toBe("rgba(144, 155, 155, 1)");
+        expect(getPullRequestColour({ status: "CLOSED" })).toBe("rgba(144, 155, 155, 1)");
     });
 
     it("getPullRequestColour returns correct color for MERGED", () => {
-        expect(getPullRequestColour("MERGED")).toBe("rgba(214, 172, 255, 1)");
+        expect(getPullRequestColour({ status: "MERGED" })).toBe("rgba(214, 172, 255, 1)");
     });
 });
 
